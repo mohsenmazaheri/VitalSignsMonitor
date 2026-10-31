@@ -1,0 +1,65 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_PREFIX_PATH": "$env{QTDIR}"
+            }
+        },
+        {
+            "name": "windows-msvc",
+            "displayName": "Windows - Visual Studio 2022 (x64)",
+            "description": "Set QTDIR to your Qt kit, e.g. C:/Qt/6.9.2/msvc2022_64",
+            "inherits": "base",
+            "generator": "Visual Studio 17 2022",
+            "architecture": "x64",
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+        },
+        {
+            "name": "mingw-debug",
+            "displayName": "Windows - MinGW Ninja Debug",
+            "description": "Set QTDIR to your Qt kit, e.g. C:/Qt/6.12.0/mingw_64; MinGW g++ and Ninja on PATH",
+            "inherits": "base",
+            "generator": "Ninja",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "CMAKE_CXX_COMPILER": "g++" },
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+        },
+        {
+            "name": "linux-debug",
+            "displayName": "Linux - Ninja Debug",
+            "description": "Set QTDIR to your Qt kit, e.g. ~/Qt/6.9.2/gcc_64",
+            "inherits": "base",
+            "generator": "Ninja",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" },
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" }
+        }
+    ],
+    "buildPresets": [
+        { "name": "windows-debug",   "configurePreset": "windows-msvc", "configuration": "Debug" },
+        { "name": "windows-release", "configurePreset": "windows-msvc", "configuration": "Release" },
+        { "name": "mingw-debug",     "configurePreset": "mingw-debug" },
+        { "name": "linux-debug",     "configurePreset": "linux-debug" }
+    ],
+    "testPresets": [
+        {
+            "name": "mingw-debug",
+            "configurePreset": "mingw-debug",
+            "output": { "outputOnFailure": true }
+        },
+        {
+            "name": "windows-debug",
+            "configurePreset": "windows-msvc",
+            "configuration": "Debug",
+            "output": { "outputOnFailure": true }
+        },
+        {
+            "name": "linux-debug",
+            "configurePreset": "linux-debug",
+            "output": { "outputOnFailure": true }
+        }
+    ]
+}

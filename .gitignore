@@ -54,3 +54,20 @@ compile_commands.json
 *creator.user*
 
 *_qmlcache.qrc
+
+# CMake / IDE
+out/
+CMakeUserPresets.json
+.vs/
+.vscode/
+.idea/
+.cache/
+
+# Word lock files
+~$*
+
+# Qt Creator local project settings
+.qtcreator/
+
+# The Qt template rule "*build-*" above would also hide the document generator
+!Documents/source/build-docs.ps1
