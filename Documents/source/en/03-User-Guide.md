@@ -2,14 +2,14 @@
 title: User Guide
 subtitle: VitalSigns Monitor and Patient Simulator - operating the programs
 docid: VSM-USR-001
-version: 1.0
+version: 1.1
 date: 1 November 2026
 author: Mohsen Mazaheri
 status: Draft for review
 lang: en
 output: EN/VitalSignsMonitor-03-User-Guide-EN.docx
 header: VitalSigns Monitor · User Guide
-history: 1.0 | 1 Nov 2026 | Mohsen Mazaheri | First issue, based on software version 0.1.0
+history: 1.0 | 1 Nov 2026 | Mohsen Mazaheri | First issue, based on software version 0.1.0; 1.1 | 1 Nov 2026 | Mohsen Mazaheri | Alarm manager, audit log, alarm sounds and CI (software version 0.2.0)
 notice: **Synthetic data only - not a medical device.** The programs show synthetic signals from a simulator. Do not use them for diagnosis, treatment or monitoring of people.
 ---
 
@@ -134,7 +134,7 @@ The simulator can also be started from a command prompt:
 
 # 5. Monitor
 
-![Figure 2 - The monitor with normal values](docs/images/monitor-v0.1.png)
+![Figure 2 - The monitor with normal values](docs/images/monitor-main.png)
 
 ## 5.1 Connection bar
 
@@ -152,7 +152,13 @@ If the connection breaks, the monitor tries again every 2 seconds until you clic
 
 ## 5.2 Alarm banner
 
-The banner below the connection bar shows the most important active alarm in the colour of its priority. If more alarms are active, "+N more" is shown on the right. Without alarms it reads "No active alarms".
+The banner below the connection bar shows the most important alarm in the colour of its priority. If there are more alarms, "+N more" is shown next to it. Without alarms it reads "No active alarms". An unacknowledged high-priority alarm flashes. The banner also holds three keys:
+
+| Key | Function |
+|---|---|
+| ACKNOWLEDGE | Stops the sound and the flashing for the current alarms and removes latched alarms |
+| AUDIO PAUSE | Stops the sound for 2 minutes; the key shows the time left (AUDIO PAUSED 1:58). Press again to end the pause |
+| EVENTS | Opens the window with all current alarms and the event log |
 
 ## 5.3 ECG panel
 
@@ -179,7 +185,7 @@ The right side shows the permanent notice "SYNTHETIC DATA - NOT A MEDICAL DEVICE
 
 ## 5.6 Start-up option
 
-`VitalSignsMonitor --connect 127.0.0.1:5555` connects automatically at start-up.
+`VitalSignsMonitor --connect 127.0.0.1:5555` connects automatically at start-up. `--no-sound` turns the alarm sounds off (the visual signals stay), and `--audit-dir <folder>` selects the folder of the audit log.
 
 # 6. Alarms
 
@@ -210,9 +216,23 @@ The right side shows the permanent notice "SYNTHETIC DATA - NOT A MEDICAL DEVICE
 ## 6.3 Behaviour
 
 - Only the most severe alarm of each parameter is shown: HR 160 gives "HR extremely high", not also "HR high".
-- Alarms end by themselves when the condition is gone (no latching in version 0.1.0).
+- Medium and low alarms end by themselves when the condition is gone.
+- **High alarms latch:** when the condition ends, the alarm stays visible and audible and the banner adds "ENDED - ACKNOWLEDGE", so that a short critical event cannot go unnoticed. The number in the tile always shows the present value and colour.
+- **Acknowledged** alarms stay visible, steady and silent while the condition lasts. If the alarm comes back later or gets worse, it sounds again.
+- **Audio pause:** a new medium or high alarm ends the pause early; a new low alarm does not. The key is off when nothing is unacknowledged, because a pause in advance would hide the next alarm. Visual signals keep running during the pause.
+- **Disconnect** clears all alarms, also latched ones, because the next session may be another patient.
 - When the link is lost, HR and SpO2 are cleared to "---" and the sensor alarms are hidden, because the last sensor state is no longer known.
-- In version 0.1.0 there is no alarm sound, no silence key and the limits cannot be changed.
+- The limits cannot be changed in version 0.2.0.
+
+## 6.4 Alarm sounds
+
+Each priority has its own melody: high 10 pulses every 6 s, medium 3 pulses every 8 s, low 2 pulses every 20 s. The most urgent unacknowledged alarm decides which one plays. Without an audio device the monitor stays silent and the visual signals keep working.
+
+## 6.5 Event log
+
+![Figure 4 - Current alarms and event log](docs/images/monitor-events.png)
+
+**EVENTS** lists the current alarms and the latest events, newest first. Operator actions are shown in cyan. The complete log is a CSV file with one file per day, shown at the bottom of the window. On Windows it is in `%LOCALAPPDATA%\Mohsen Mazaheri\VitalSigns Monitor\audit`. The columns are `time_utc`, `event`, `actor` (operator or system), `code`, `priority` and `detail`. The log holds no patient data. If the file cannot be written, a red message appears in the connection bar and the monitor keeps running.
 
 # 7. Exercises
 
@@ -225,7 +245,12 @@ The right side shows the permanent notice "SYNTHETIC DATA - NOT A MEDICAL DEVICE
 | PROBE OFF | SpO2 shows "---", "PROBE OFF", light-blue alarm "SpO2 probe off" |
 | CABLE UNPLUGGED | After 3 s yellow "No data from device", values "---"; after plugging in, "Lost frames" counts the gap |
 | CORRUPT 5 % | "CRC errors" rises, the display keeps running |
-| DEMO scenario | All situations above one after another in about three minutes |
+| DEMO scenario | Most situations above one after another in about three minutes |
+| HR preset 160, wait for the red alarm, then preset 75 | Below 150 the red alarm stays with "ENDED - ACKNOWLEDGE" while the tile turns yellow, then green |
+| On the monitor: ACKNOWLEDGE | Sound and flashing stop; a latched alarm disappears |
+| On the monitor: AUDIO PAUSE during an alarm | Sound stops, the key counts down from 2:00, the banner keeps flashing |
+| AUDIO PAUSE, then SpO2 preset 85 | The pause ends as soon as the new SpO2 alarm starts |
+| On the monitor: EVENTS | All of the above appears in the event log with its time |
 
 # 8. Console simulator
 
@@ -267,6 +292,8 @@ At 115200 baud the simulator uses only part of the line; the LCD shows the line 
 | Serial port list is empty | No serial ports or no virtual pair installed | Install com0com or connect a USB-serial adapter, then press ↻ |
 | Many CRC errors | Corruption switched on, or wrong baud rate | Set CORRUPT FRAMES to 0 %, use the same baud rate on both sides |
 | A program does not start (missing DLL) | Qt libraries not found | Start it from Qt Creator or use the deployed folder (see the Installation Guide) |
+| No alarm sound | Audio device missing or muted, or the program runs with --no-sound | Check the Windows sound settings; start without --no-sound |
+| "Audit log cannot be written" | The folder is not writable | Choose another folder with --audit-dir |
 | From Qt Creator the simulator closes when the monitor starts | Qt Creator setting | Set "Stop applications before building" to "Same Application" (Installation Guide, section 6) |
 
 # 11. Glossary
@@ -280,3 +307,6 @@ At 115200 baud the simulator uses only part of the line; the LCD shows the line 
 | Desaturation | Fall of SpO2 |
 | CRC | Checksum that detects damaged frames |
 | Frame | One data packet of the device protocol |
+| Latched alarm | An alarm that stays after its condition ended, until it is acknowledged |
+| Acknowledge | The operator confirms having seen an alarm; its sound stops |
+| Audit log | A permanent record of alarms, operator actions and connection events |

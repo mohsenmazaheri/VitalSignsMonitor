@@ -1,0 +1,65 @@
+# Builds everything and runs all unit tests on Windows (MinGW) and Linux (GCC).
+# Warnings count as errors here, so the "warning-free" rule cannot erode unnoticed.
+# Qt 6.8.3 is the oldest supported version: developing on a newer Qt must not
+# silently raise the minimum.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false # a Linux failure must not hide the Windows result
+      matrix:
+        include:
+          - name: Windows (MinGW, Qt 6.8)
+            os: windows-latest
+            preset: mingw-debug
+            arch: win64_mingw
+            tools: tools_mingw1310,qt.tools.win64_mingw1310
+          - name: Linux (GCC, Qt 6.8)
+            os: ubuntu-latest
+            preset: linux-debug
+            arch: linux_gcc_64
+            tools: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install CMake and Ninja
+        uses: lukka/get-cmake@latest
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.3"
+          arch: ${{ matrix.arch }}
+          modules: qtmultimedia qtserialport
+          tools: ${{ matrix.tools }}
+          cache: true
+
+      - name: Point the CMake presets at Qt
+        shell: bash
+        run: |
+          # The presets read QTDIR; CMake needs forward slashes on Windows.
+          qt_dir="$QT_ROOT_DIR"
+          if command -v cygpath > /dev/null; then qt_dir="$(cygpath -m "$qt_dir")"; fi
+          echo "QTDIR=$qt_dir" >> "$GITHUB_ENV"
+
+      - name: Configure
+        shell: bash
+        run: cmake --preset ${{ matrix.preset }} -DVSM_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        shell: bash
+        run: cmake --build --preset ${{ matrix.preset }} --parallel
+
+      - name: Test
+        shell: bash
+        run: ctest --preset ${{ matrix.preset }}

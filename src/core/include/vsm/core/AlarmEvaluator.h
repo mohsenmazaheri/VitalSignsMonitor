@@ -14,8 +14,8 @@ namespace vsm::core {
 ///  - keep only the highest-priority alarm per AlarmSource,
 ///  - sort the result: highest priority first, then by source.
 ///
-/// The evaluator is stateless between calls; latching, silencing and audio
-/// belong to a separate alarm manager (planned for week 3).
+/// The evaluator is stateless between calls; latching, acknowledging and the
+/// audio pause belong to AlarmManager.
 class AlarmEvaluator {
 public:
     explicit AlarmEvaluator(std::vector<std::unique_ptr<IAlarmRule>> rules);

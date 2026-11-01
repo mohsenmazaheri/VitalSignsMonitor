@@ -2,14 +2,14 @@
 title: Installation and Setup Guide
 subtitle: VitalSigns Monitor - tools, build, first start, deployment and virtual serial ports
 docid: VSM-INS-001
-version: 1.0
+version: 1.1
 date: 1 November 2026
 author: Mohsen Mazaheri
 status: Draft for review
 lang: en
 output: EN/VitalSignsMonitor-04-Installation-Guide-EN.docx
 header: VitalSigns Monitor · Installation and Setup Guide
-history: 1.0 | 1 Nov 2026 | Mohsen Mazaheri | First issue, based on software version 0.1.0
+history: 1.0 | 1 Nov 2026 | Mohsen Mazaheri | First issue, based on software version 0.1.0; 1.1 | 1 Nov 2026 | Mohsen Mazaheri | Alarm manager, audit log, alarm sounds and CI (software version 0.2.0)
 notice: **Synthetic data only - not a medical device.** Install the programs only for learning, demonstration and software testing.
 ---
 
@@ -43,7 +43,7 @@ Verified configuration: Windows 11 Pro 64-bit, Qt 6.12.0 MinGW 64-bit, MinGW 13.
 
 | Software | Version | Purpose | Source |
 |---|---|---|---|
-| Qt (open-source) | 6.8 or newer; verified with 6.12.0 | Framework: Core, Gui, Network, Serial Port, Quick, Quick Controls 2 | Qt Online Installer (free Qt account) |
+| Qt (open-source) | 6.8 or newer; verified with 6.12.0 | Framework: Core, Gui, Multimedia, Network, Serial Port, Quick, Quick Controls 2 | Qt Online Installer (free Qt account) |
 | MinGW | 13.1 (64-bit) | C++20 compiler (g++) | Qt installer, Developer and Designer Tools |
 | CMake | 3.25 or newer | Build system | Qt installer or cmake.org |
 | Ninja | any recent | Fast build tool | Qt installer |
@@ -64,6 +64,7 @@ Alternative: Visual Studio 2022 with an msvc2022_64 Qt kit (preset windows-msvc)
 |---|---|
 | Qt > Qt 6.12.0 > MinGW 13.1.0 64-bit | Yes |
 | Qt > Qt 6.12.0 > Additional Libraries > Qt Serial Port | Yes - without it CMake stops with "Qt6SerialPort not found" |
+| Qt > Qt 6.12.0 > Additional Libraries > Qt Multimedia | Yes - needed for the alarm sounds; without it CMake stops with "Qt6Multimedia not found" |
 | Qt > Developer and Designer Tools > MinGW 13.1.0 64-bit | Yes |
 | Qt > Developer and Designer Tools > CMake, Ninja | Yes |
 | Qt > Developer and Designer Tools > Qt Creator | Recommended |
@@ -140,7 +141,7 @@ Build options: `-DVSM_BUILD_TESTS=OFF` skips the tests (and the GoogleTest downl
 ctest --preset mingw-debug
 ```
 
-Expected result: "100% tests passed, 0 tests failed out of 63". In Qt Creator: Tools > Tests > Run All Tests.
+Expected result: "100% tests passed, 0 tests failed out of 121". In Qt Creator: Tools > Tests > Run All Tests.
 
 ## 8.2 First start
 
@@ -231,6 +232,7 @@ ctest --preset linux-debug
 | Message or symptom | Cause | Solution |
 |---|---|---|
 | CMake: Failed to find required Qt component "SerialPort" | Qt Serial Port is not installed for the selected kit | MaintenanceTool > Add or remove components > Qt 6.12.0 > Additional Libraries > Qt Serial Port, then run CMake again |
+| CMake: Failed to find required Qt component "Multimedia" | Qt Multimedia is not installed for the selected kit | MaintenanceTool > Add or remove components > Qt 6.12.0 > Additional Libraries > Qt Multimedia, then run CMake again |
 | CMake: Could not find a package configuration file provided by "Qt6" | CMAKE_PREFIX_PATH or QTDIR not set | Set QTDIR (presets) or pass -DCMAKE_PREFIX_PATH=C:/Qt/6.12.0/mingw_64 |
 | CMake cannot download GoogleTest | No internet at the first configure | Connect to the internet once, or configure with -DVSM_BUILD_TESTS=OFF |
 | "Qt6Core.dll was not found" when starting an .exe | Qt bin folder not on PATH | Start from Qt Creator, add C:\Qt\6.12.0\mingw_64\bin to PATH, or deploy (section 9) |
@@ -242,6 +244,6 @@ ctest --preset linux-debug
 
 # 14. Uninstalling
 
-- Delete the project folder (and the deploy folder, if any). Version 0.1.0 stores no settings of its own (no QSettings, no registry entries).
+- Delete the project folder (and the deploy folder, if any). Version 0.2.0 stores no settings (no QSettings, no registry entries). The only other files are the audit logs in `%LOCALAPPDATA%\Mohsen Mazaheri\VitalSigns Monitor\audit`; delete this folder too if you do not need them.
 - Remove Qt with `C:\Qt\MaintenanceTool.exe` > Remove all components.
 - Remove com0com with its uninstaller in the Windows apps list.

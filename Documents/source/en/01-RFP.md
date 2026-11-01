@@ -2,14 +2,14 @@
 title: Request for Proposal (RFP)
 subtitle: VitalSigns Monitor - desktop vital-signs monitor and patient simulator (C++20, Qt 6 / QML)
 docid: VSM-RFP-001
-version: 1.0
+version: 1.1
 date: 1 November 2026
 author: Mohsen Mazaheri
 status: Draft for review
 lang: en
 output: EN/VitalSignsMonitor-01-RFP-EN.docx
 header: VitalSigns Monitor · Request for Proposal
-history: 1.0 | 1 Nov 2026 | Mohsen Mazaheri | First issue, based on software version 0.1.0
+history: 1.0 | 1 Nov 2026 | Mohsen Mazaheri | First issue, based on software version 0.1.0; 1.1 | 1 Nov 2026 | Mohsen Mazaheri | Alarm manager, audit log, alarm sounds and CI (software version 0.2.0)
 notice: **Synthetic data only - not a medical device.** VitalSigns Monitor is a learning and portfolio project. It works only with synthetic signals from its own simulator and must not be used for diagnosis, treatment or patient monitoring.
 ---
 
@@ -19,7 +19,7 @@ notice: **Synthetic data only - not a medical device.** VitalSigns Monitor is a 
 
 This Request for Proposal (RFP) describes the VitalSigns Monitor system and asks for proposals to design, build, test and document it. It is also the requirements baseline of the project: every requirement has an identifier (for example `FR-ALM-03`) that the design, the tests and later documents can refer to.
 
-Version 0.1.0 of the software already exists. Appendix A shows which requirements it covers and which are planned.
+Version 0.2.0 of the software already exists. Appendix A shows which requirements it covers and which are planned.
 
 ## 1.2 Background
 
@@ -141,8 +141,11 @@ Priority: **Must** = required for acceptance, **Should** = expected, **Could** =
 | FR-ALM-04 | Only the highest-priority alarm of each source (HR, SpO2, ECG leads, probe, link) is reported. | Must |
 | FR-ALM-05 | When the link is lost, the numbers are cleared and the sensor alarms are suppressed, because their flags are stale. | Must |
 | FR-ALM-06 | Alarm rules are pluggable: a new rule needs no change in the evaluator. | Should |
-| FR-ALM-07 | Alarm latching, acknowledge/silence and audible signals. | Could |
+| FR-ALM-07 | High-priority alarms latch: they stay visible and audible after the condition ends, until acknowledged. | Should |
 | FR-ALM-08 | Alarm limits can be changed in the user interface and are saved. | Could |
+| FR-ALM-09 | An acknowledge key silences current alarms and removes latched ones; an alarm that comes back or gets worse sounds again. | Should |
+| FR-ALM-10 | An audio pause key silences for 2 minutes with a visible countdown; a new medium or high alarm ends the pause. | Should |
+| FR-ALM-11 | Each priority has its own alarm melody; the more urgent, the more pulses. | Should |
 
 ## 4.5 Patient simulator
 
@@ -157,11 +160,20 @@ Priority: **Must** = required for acceptance, **Should** = expected, **Could** =
 | FR-SIM-07 | A console version with the same engine, for scripts and automated tests. | Should |
 | FR-SIM-08 | Transmission statistics: frames sent, corrupted and dropped, bytes per second and serial line load. | Should |
 
+## 4.6 Audit log
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-AUD-01 | Every alarm change, operator key, connection change and program start or stop is recorded with UTC time. | Should |
+| FR-AUD-02 | The log tells operator actions from system events and contains no patient data. | Should |
+| FR-AUD-03 | The latest events can be read on screen; the complete log stays in a CSV file. | Should |
+| FR-AUD-04 | A log file that cannot be written is reported on screen and never stops the monitor. | Should |
+
 # 5. Non-functional requirements
 
 | ID | Category | Requirement |
 |---|---|---|
-| NFR-01 | Technology | C++20, Qt 6.8 or newer (Qt Quick / QML, Network, Serial Port), CMake 3.25 or newer. |
+| NFR-01 | Technology | C++20, Qt 6.8 or newer (Qt Quick / QML, Multimedia, Network, Serial Port), CMake 3.25 or newer. |
 | NFR-02 | Platforms | Windows 10/11 64-bit (MinGW or MSVC) and Linux (GCC or Clang). |
 | NFR-03 | Architecture | Layered design; the protocol and core layers do not depend on Qt; SOLID principles; dependencies are injected. |
 | NFR-04 | Responsiveness | No I/O in the GUI thread; the ECG is drawn with the Qt Quick scene graph. |
@@ -172,6 +184,7 @@ Priority: **Must** = required for acceptance, **Should** = expected, **Could** =
 | NFR-09 | Data protection | No personal or patient data is stored or transmitted. |
 | NFR-10 | Documentation | README, architecture and protocol documents, learning log, and this document set in English and Persian. |
 | NFR-11 | Cost | Free and open-source tools and libraries only (Qt open-source edition, GoogleTest); no paid licences. |
+| NFR-12 | Continuous integration | Every change is built and tested on Windows and Linux with warnings as errors (GitHub Actions). |
 
 # 6. Deliverables
 
@@ -190,7 +203,7 @@ Priority: **Must** = required for acceptance, **Should** = expected, **Could** =
 | Milestone | Content | State |
 |---|---|---|
 | M1 - week 2 | CMake project, protocol, simulator, I/O thread, monitor user interface, patient simulator front panel, 63 unit tests | Done (v0.1.0) |
-| M2 - week 3 | Alarm manager (latching, silence, audio), audit log, more tests, continuous integration (GitHub Actions, Windows and Linux) | Planned |
+| M2 - week 3 | Alarm manager (latching, acknowledge, audio pause, sounds), audit log, 121 unit tests, continuous integration (GitHub Actions, Windows and Linux) | Done (v0.2.0); first CI run pending |
 | M3 - week 4 | Risk table in the style of ISO 14971, software requirements and traceability in the style of IEC 62304, Linux build in WSL2 | Planned |
 | M4 - later | Stream data to a web application (ASP.NET Core and SignalR) | Idea |
 
@@ -221,23 +234,27 @@ A proposal should contain:
 - Development and first tests take place on Windows 11 with Qt 6.12.0 (MinGW 64-bit).
 - One device is connected to one monitor window.
 - The serial path needs either real hardware or a virtual COM-port pair (for example com0com).
-- Alarm limits use fixed default values in version 0.1.0.
+- Alarm limits use fixed default values in version 0.2.0.
 - No real patient data is ever used (see section 1.3).
 
 # 11. Contact
 
 Project owner: Mohsen Mazaheri. Questions about this RFP can be raised as issues in the project repository (github.com/mohsenmazaheri/VitalSignsMonitor).
 
-# Appendix A. Status of version 0.1.0
+# Appendix A. Status of version 0.2.0
 
-| Requirement | State in v0.1.0 |
+| Requirement | State in v0.2.0 |
 |---|---|
 | FR-COM-01, FR-COM-03 to FR-COM-06 | Implemented and tested (unit tests and end-to-end over TCP) |
 | FR-COM-02 | Implemented; not yet tested end-to-end (no virtual COM-port pair installed) |
 | FR-PRO-01 to FR-PRO-05 | Implemented and unit-tested; documented in docs/PROTOCOL.md |
 | FR-DSP-01 to FR-DSP-05 | Implemented |
 | FR-ALM-01 to FR-ALM-06 | Implemented and unit-tested |
-| FR-ALM-07, FR-ALM-08 | Planned for milestone M2 |
+| FR-ALM-07, FR-ALM-09, FR-ALM-10 | Implemented, unit-tested and tried end-to-end with the simulator |
+| FR-ALM-08 | Not implemented; planned for a later version |
+| FR-ALM-11 | Implemented; melody patterns unit-tested, playback started without error, but nobody has listened to it yet |
+| FR-AUD-01 to FR-AUD-04 | Implemented; file writing unit-tested, checked end-to-end. A write error after a successful open is not shown on screen |
 | FR-SIM-01 to FR-SIM-08 | Implemented; engine unit-tested; serial output not yet tested end-to-end |
 | NFR-01, NFR-03 to NFR-11 | Met |
-| NFR-02 | Windows verified; Linux build planned for milestone M3 |
+| NFR-02 | Windows verified; Linux is built by CI, first run pending |
+| NFR-12 | Workflow written; first run on GitHub pending |

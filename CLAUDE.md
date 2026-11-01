@@ -20,8 +20,9 @@ start-up) or `VitalSignsSimulator.exe` (console), then `VitalSignsMonitor.exe --
 
 ## Layout
 
-- `src/protocol`, `src/core` - pure C++20; `src/device` - Qt I/O; `src/ui` - shared QML module
-  `VitalSigns.Ui` (waveform); `src/app` - monitor.
+- `src/protocol`, `src/core` - pure C++20; `src/audit` - audit CSV file (C++20, no Qt); `src/device` -
+  Qt I/O; `src/ui` - shared QML module `VitalSigns.Ui` (waveform); `src/app` - monitor.
+- `.github/workflows/ci.yml` - Windows (MinGW) and Linux with Qt 6.8.3, warnings as errors.
 - `tools/simulator/engine` (`vsm_simulation` library), `cli` (console), `gui` (front-panel QML).
 - `Documents/` - Word documents (RFP, Developer, User, Installation guides) in `EN/` and `FA/`,
   generated from `Documents/source/{en,fa}/*.md` by `Documents/source/build-docs.ps1` (Word COM).
@@ -30,6 +31,8 @@ start-up) or `VitalSignsSimulator.exe` (console), then `VitalSignsMonitor.exe --
 ## Rules
 
 - Keep the layering: `protocol` and `core` stay Qt-free; `core` never includes `protocol`.
+- Alarm logic takes "now" as a parameter and reports through `IAuditLog`; it never reads a clock or a file.
+- Every new alarm or operator event must reach the audit log; audit entries never hold patient data.
 - New alarm -> new `IAlarmRule`; new transport -> new `ITransport`; new simulator output -> new
   `IByteSink`; wire concrete types only in the `main.cpp` files.
 - Classes registered with `QML_ELEMENT` must not be `final`; `Q_INVOKABLE` functions must not be

@@ -2,14 +2,14 @@
 title: راهنمای توسعه‌دهنده
 subtitle: VitalSigns Monitor - معماری، ساختار کد، ساخت، آزمون و توسعه
 docid: VSM-DEV-001
-version: 1.0
+version: 1.1
 date: ۱۰ آبان ۱۴۰۵
 author: محسن مظاهری
 status: پیش‌نویس برای بررسی
 lang: fa
 output: FA/VitalSignsMonitor-02-Developer-Guide-FA.docx
 header: VitalSigns Monitor · راهنمای توسعه‌دهنده
-history: 1.0 | ۱۴۰۵/۰۸/۱۰ | محسن مظاهری | انتشار اول، بر اساس نسخه 0.1.0 نرم‌افزار
+history: 1.0 | ۱۴۰۵/۰۸/۱۰ | محسن مظاهری | انتشار اول، بر اساس نسخه 0.1.0 نرم‌افزار; 1.1 | ۱۴۰۵/۰۸/۱۰ | محسن مظاهری | مدیر هشدار، ثبت رویداد، صدای هشدار و CI (نسخه 0.2.0 نرم‌افزار)
 notice: **فقط داده مصنوعی - این نرم‌افزار وسیله پزشکی نیست.** هرگز داده واقعی بیمار را به کد، آزمون‌ها یا مخزن اضافه نکنید.
 ---
 
@@ -38,8 +38,9 @@ notice: **فقط داده مصنوعی - این نرم‌افزار وسیله �
 | چارچوب | Qt نسخه 6.8 یا جدیدتر | ساخته و آزموده شده با Qt 6.12.0 (MinGW 64-bit) |
 | رابط کاربری | Qt Quick / QML و Qt Quick Controls (سبک Fusion) | رسم ECG با گراف صحنه Qt Quick |
 | ورودی/خروجی | Qt Network (QTcpSocket، QTcpServer) و Qt Serial Port | |
+| صدا | Qt Multimedia (QSoundEffect) | ملودی‌ها در کد ساخته می‌شوند |
 | ساخت | CMake 3.25+ و Ninja یا MinGW Makefiles | فایل CMakePresets.json موجود است |
-| آزمون | GoogleTest 1.15 (هنگام پیکربندی دانلود می‌شود) و CTest | ۶۳ آزمون |
+| آزمون | GoogleTest 1.15 (هنگام پیکربندی دانلود می‌شود) و CTest | ۱۲۱ آزمون |
 | کامپایلرها | GCC 13 (MinGW)، MSVC 2022، Clang 14+ | هشدارها فعال؛ بدون هیچ هشدار |
 
 # ۳- ساختار مخزن
@@ -52,6 +53,7 @@ VitalSignsMonitor/
   src/
     protocol/             wire format: Frame, FrameDecoder, Messages, CRC-16   (C++20, no Qt)
     core/                 domain: VitalSigns, alarms, SweepBuffer             (C++20, no Qt)
+    audit/                FileAuditLog: audit trail as a CSV file             (C++20, no Qt)
     device/               ITransport, TCP/serial transports, DeviceSession, DeviceController
     ui/                   shared QML module VitalSigns.Ui: WaveformSeries, WaveformItem
     app/                  monitor: main.cpp, view models, QML
@@ -61,6 +63,7 @@ VitalSignsMonitor/
     gui/                  VitalSignsPatientSimulator (front panel, QML)
   tests/                  GoogleTest suites (protocol, core, device, simulation)
   docs/                   ARCHITECTURE.md, PROTOCOL.md, images/
+  .github/workflows/      ci.yml: build and test on Windows and Linux
   Documents/              this document set (Word) and its sources
 ```
 
@@ -70,10 +73,11 @@ VitalSignsMonitor/
 
 | لایه | پوشه | وابسته به | نوع‌های اصلی |
 |---|---|---|---|
-| app | src/app | ui، device، core، Qt Quick | main.cpp، MonitorViewModel، AlarmListModel، QML |
+| app | src/app | ui، device، audit، core، Qt Quick، Qt Multimedia | main.cpp، MonitorViewModel، AlarmListModel، AuditLogModel، QtAlarmSound، QML |
+| audit | src/audit | core و کتابخانه استاندارد C++ | FileAuditLog |
 | ui | src/ui | core، Qt Quick | WaveformSeries، WaveformItem |
 | device | src/device | protocol، core، Qt Network، Qt Serial Port | ITransport، TcpTransport، SerialTransport، DeviceSession، DeviceController |
-| core | src/core | فقط کتابخانه استاندارد C++ | VitalSigns، Alarm، AlarmLimits، IAlarmRule، AlarmEvaluator، SweepBuffer |
+| core | src/core | فقط کتابخانه استاندارد C++ | VitalSigns، Alarm، AlarmLimits، IAlarmRule، AlarmEvaluator، AlarmManager، AlarmTone، IAuditLog، SweepBuffer |
 | protocol | src/protocol | فقط کتابخانه استاندارد C++ | Frame، FrameDecoder، Messages، crc16CcittFalse |
 | simulation | tools/simulator/engine | protocol، Qt Network، Qt Serial Port | SyntheticPatient، Scenario، DeviceSimulator، IByteSink و خروجی‌ها |
 | برنامه‌های شبیه‌ساز | tools/simulator/cli و gui | simulation (و ui برای نسخه گرافیکی) | main.cpp خط فرمان، PatientSimulatorController، QML پنل جلو |
@@ -90,6 +94,7 @@ VitalSignsMonitor/
 |---|---|---|---|
 | vsm_protocol (vsm::protocol) | کتابخانه ایستا | vsm::protocol | لایه پروتکل |
 | vsm_core (vsm::core) | کتابخانه ایستا | vsm::core | دامنه و هشدارها |
+| vsm_audit (vsm::audit) | کتابخانه ایستا | vsm::audit | فایل ثبت رویداد |
 | vsm_device (vsm::device) | کتابخانه ایستا | vsm::device | ترابرها، نشست، کنترل‌گر |
 | vsm_ui (vsm::ui) + vsm_uiplugin | ماژول QML ایستا به نام VitalSigns.Ui | vsm::ui | نوع‌های رسم موج |
 | vsm_simulation (vsm::simulation) | کتابخانه ایستا | vsm::simulator | موتور شبیه‌ساز |
@@ -108,7 +113,7 @@ QTcpSocket / QSerialPort
   -> DeviceSession: FrameDecoder -> parseMessage
      -> vitalsReceived(VitalSigns)        ==queued==>  DeviceController (relay)
      -> ecgSamplesReceived(mV, rate)      ==queued==>    -> MonitorViewModel
-     -> linkLostChanged / statistics      ==queued==>         -> AlarmEvaluator -> AlarmListModel
+     -> linkLostChanged / statistics      ==queued==>         -> AlarmEvaluator -> AlarmManager -> AlarmListModel, IAlarmSound, IAuditLog
                                                               -> WaveformSeries -> WaveformItem
                                                               -> QML properties
 ```
@@ -127,9 +132,11 @@ QTcpSocket / QSerialPort
 | باز/بسته | هشدار جدید = IAlarmRule جدید؛ ترابر جدید = ITransport جدید؛ خروجی جدید شبیه‌ساز = IByteSink جدید؛ سناریوی جدید = مدخل جدید در makeScenario() |
 | جایگزینی لیسکوف | FakeTransport، TcpTransport و SerialTransport برای DeviceSession قابل جایگزینی‌اند (آزمون‌ها این را ثابت می‌کنند) |
 | تفکیک رابط | ITransport چهار متد و سه سیگنال دارد؛ IByteSink از ITransport جداست |
-| وارونگی وابستگی | DeviceSession به ITransport وابسته است؛ DeviceController یک TransportFactory می‌گیرد؛ AlarmEvaluator به MonitorViewModel تزریق می‌شود؛ DeviceSimulator یک IByteSink و یک ساعت دریافت می‌کند |
+| وارونگی وابستگی | DeviceSession به ITransport وابسته است؛ DeviceController یک TransportFactory می‌گیرد؛ AlarmEvaluator، AlarmManager و IAlarmSound به MonitorViewModel تزریق می‌شوند؛ AlarmManager در IAuditLog می‌نویسد؛ DeviceSimulator یک IByteSink و یک ساعت دریافت می‌کند |
 | راهبرد (Strategy) | IAlarmRule با LimitAlarmRule و ConditionAlarmRule |
 | نما (Facade) | DeviceController رشته و نشست را از رابط کاربری پنهان می‌کند |
+| تزئین‌کننده (Decorator) | AuditLogModel هر رویداد را روی صفحه نشان می‌دهد و به IAuditLog واقعی می‌فرستد |
+| ماشین حالت | AlarmManager: Active، Acknowledged، Latched |
 | کارخانه (Factory) | createDefaultTransport()، createDefaultSink()، makeDefaultAlarmRules()، makeScenario() |
 | MVVM | نماهای QML به MonitorViewModel، AlarmListModel، WaveformSeries و PatientSimulatorController متصل‌اند |
 | ریشه ترکیب | src/app/main.cpp و tools/simulator/gui/main.cpp گراف اشیا را می‌سازند |
@@ -151,7 +158,12 @@ QTcpSocket / QSerialPort
 - `IAlarmRule::evaluate(context)` یک هشدار یا std::nullopt برمی‌گرداند. `LimitAlarmRule` یک مقدار را با یک حد مقایسه می‌کند و `ConditionAlarmRule` از یک گزاره (predicate) استفاده می‌کند.
 - `makeDefaultAlarmRules(AlarmLimits)` نُه قاعده پیش‌فرض را می‌سازد و حدود ناسازگار را رد می‌کند.
 - `AlarmEvaluator` همه قواعد را ارزیابی می‌کند و از هر منبع فقط بالاترین اولویت را، مرتب‌شده بر اساس اولویت، نگه می‌دارد.
+- `AlarmManager` به ارزیاب بدون حالت، حافظه اضافه می‌کند. هر هشدار در یکی از حالت‌های Active، Acknowledged یا Latched است. هشدارهای با اولویت بالا تا زمان تأیید می‌مانند؛ توقف صدا ۲ دقیقه طول می‌کشد و هشدار جدید با اولویت متوسط یا بالا آن را پایان می‌دهد. هر فراخوانی وابسته به زمان، «اکنون» را به‌صورت پارامتر می‌گیرد، پس آزمون‌ها هرگز منتظر نمی‌مانند.
+- `IAuditLog` و `AuditEvent` ثبت رویداد را تعریف می‌کنند. مدیر هشدار فقط این رابط را می‌شناسد و هرگز با فایل کار نمی‌کند.
+- `makeAlarmTone()` برای هر اولویت یک تکرار از ملودی را می‌سازد (بالا: ۱۰ پالس هر ۶ ثانیه، متوسط: ۳ پالس هر ۸ ثانیه، پایین: ۲ پالس هر ۲۰ ثانیه) و `encodeWav()` آن را به قالب فایل WAV درمی‌آورد.
 - `SweepBuffer` بافر حلقوی پشت نمایش جاروبی ECG است.
+
+زنجیره هشدار: AlarmEvaluator می‌گوید الان چه چیزی درست است، AlarmManager به یاد می‌سپارد اپراتور چه چیزی را دیده است، و مدل نما نتیجه را به فهرست هشدار و صدا می‌دهد.
 
 ## ۵-۳ دستگاه (vsm::device)
 
@@ -176,7 +188,7 @@ signals:
 - `TcpTransport` و `SerialTransport` این رابط را پیاده می‌کنند و `createDefaultTransport(ConnectionSettings)` یکی از آن‌ها را انتخاب می‌کند.
 - `DeviceSession` ترابر را به FrameDecoder وصل می‌کند، پیام‌ها را به اشیای دامنه تبدیل می‌کند، زمان‌سنج نگهبان (`kDefaultWatchdogTimeout` برابر ۳۰۰۰ میلی‌ثانیه) و زمان‌سنج اتصال مجدد (`kDefaultReconnectDelay` برابر ۲۰۰۰ میلی‌ثانیه) را اجرا می‌کند و آمار LinkStatistics را می‌شمارد (فریم‌ها، خطاهای CRC، فریم‌های گم‌شده، پرش‌های شماره ترتیب، بایت‌های دورریخته).
 - `DeviceController` صاحب رشته ورودی/خروجی است و نمایی (facade) است که مدل نما با آن صحبت می‌کند.
-- دسته‌های ثبت رویداد: `vsm.device.controller`، `vsm.device.session`، `vsm.device.tcp` و `vsm.device.serial`.
+- دسته‌های لاگ: `vsm.device.controller`، `vsm.device.session`، `vsm.device.tcp` و `vsm.device.serial`؛ در برنامه `vsm.app.sound`.
 
 ## ۵-۴ رابط مشترک (vsm::ui، ماژول QML به نام VitalSigns.Ui)
 
@@ -188,8 +200,11 @@ signals:
 
 - `main.cpp` گزینه `--connect host:port` را می‌خواند، DeviceController، AlarmEvaluator و MonitorViewModel را می‌سازد و ماژول QML به نام VitalSigns.App را بار می‌کند.
 - `MonitorViewModel` ضربان قلب، SpO2، پرچم‌های حسگر، اولویت هشدارها، وضعیت اتصال، آمار ارتباط و آخرین خطا را در اختیار QML می‌گذارد و توابع connectTcp()، connectSerial()، disconnectDevice() و availableSerialPorts() را ارائه می‌کند.
-- `AlarmListModel` مدل فهرستی پشت نوار هشدار است.
-- فایل‌های QML: Main.qml، ConnectionBar.qml، AlarmBanner.qml، WaveformPanel.qml، NumericTile.qml و Theme.qml (singleton رنگ‌ها).
+- `AlarmListModel` مدل فهرستی پشت نوار هشدار و پنجره EVENTS است.
+- `AuditLogModel` آخرین ۵۰۰ رویداد را برای پنجره EVENTS نگه می‌دارد و هر کدام را به ثبت واقعی می‌فرستد (الگوی Decorator).
+- `IAlarmSound` رابط صدا است. `QtAlarmSound` ملودی‌های ساخته‌شده را در یک پوشه موقت می‌نویسد و با QSoundEffect تکرار می‌کند، چون این کلاس فقط WAV پخش می‌کند. با گزینه `--no-sound` از `NullAlarmSound` استفاده می‌شود.
+- `FileAuditLog` (کتابخانه vsm_audit، بدون Qt) برای هر رویداد یک خط CSV می‌نویسد و فوراً روی دیسک می‌برد: `time_utc,event,actor,code,priority,detail`. تابع `isOk()` فایلی را که باز نمی‌شود گزارش می‌کند.
+- فایل‌های QML: Main.qml، ConnectionBar.qml، AlarmBanner.qml، EventLogPopup.qml، WaveformPanel.qml، NumericTile.qml و Theme.qml (singleton رنگ‌ها).
 
 ## ۵-۶ موتور شبیه‌ساز (vsm::simulator)
 
@@ -256,7 +271,7 @@ preset‌ها: `mingw-debug` (Ninja، ویندوز)، `windows-msvc` با preset
 
 ## ۸-۱ اجرای آزمون‌ها
 
-دستور `ctest --preset mingw-debug` (یا «Run All Tests» در Qt Creator) را اجرا کنید. پیش از هر commit باید هر ۶۳ آزمون موفق باشند.
+دستور `ctest --preset mingw-debug` (یا «Run All Tests» در Qt Creator) را اجرا کنید. پیش از هر commit باید هر ۱۲۱ آزمون موفق باشند.
 
 | فایل اجرایی آزمون | مجموعه | تعداد | آنچه ثابت می‌کند |
 |---|---|---|---|
@@ -267,6 +282,10 @@ preset‌ها: `mingw-debug` (Ninja، ویندوز)، `windows-msvc` با preset
 | vsm_unit_tests | DefaultAlarmsTest، AlarmEvaluator | 11 | حدود انحصاری، جایگزینی هشدار متوسط با بحرانی، مرتب‌سازی، مقادیر ناموجود، هشدارهای حسگر، سرکوب هنگام قطع ارتباط، قاعده سفارشی |
 | vsm_unit_tests | AlarmLimits | 3 | معتبر بودن مقادیر پیش‌فرض، ترتیب حدود HR و SpO2 |
 | vsm_unit_tests | SweepBuffer | 4 | شروع خالی، چرخش، پاک کردن، رد ظرفیت صفر |
+| vsm_unit_tests | FrameDecoderFuzz | 4 | بایت‌های تصادفی، تکه‌های تصادفی و بایت‌های خراب (بذر ثابت): بدون خرابی، حافظه محدود، هرگز فریم نادرست |
+| vsm_unit_tests | AlarmManagerTest، AuditEvents | 26 | ماندگاری، تأیید، توقف صدا و پایان زودهنگام آن، مرتب‌سازی، اولویت صدا، ثبت رویداد، رویداد بحرانی کوتاه |
+| vsm_unit_tests | AlarmTone، Wav، AlarmToneByPriority | 16 | تعداد پالس، طول، پایان مناسب تکرار، بدون اشباع، سرآیند WAV و ترتیب بایت‌ها |
+| vsm_unit_tests | AuditFormat، FileAuditLogTest | 12 | زمان UTC، نقل‌قول CSV، سرآیند یک‌باره، نوشتن فوری، افزودن، فایل غیرقابل نوشتن |
 | vsm_device_tests | DeviceSessionTest | 10 | نشست با FakeTransport: تبدیل مقادیر، واحد ECG، فریم‌های تکه‌تکه، پرش‌ها و خطاهای CRC، چرخش شماره ترتیب، زمان‌سنج نگهبان، اتصال مجدد |
 | vsm_simulation_tests | DeviceSimulatorTest | 10 | موتور با FakeSink و ساعت جعلی: نرخ نمونه‌برداری، مقادیر عددی، تغییر تدریجی HR، حسگر جدا، کابل، خرابی فریم، سناریوها، خاموش کردن |
 
@@ -283,6 +302,12 @@ preset‌ها: `mingw-debug` (Ninja، ویندوز)، `windows-msvc` با preset
 2. برای سخت‌افزار و زمان از بدل‌ها استفاده کنید؛ هرگز در آزمون sleep نکنید.
 3. نام آزمون را از روی رفتار بگذارید، مثلاً `ReportsLinkLostAfterWatchdogTimeout`.
 4. بسازید و ctest را اجرا کنید؛ آزمون جدید خودکار شناسایی می‌شود (gtest_discover_tests).
+
+## ۸-۴ یکپارچه‌سازی پیوسته
+
+فایل `.github/workflows/ci.yml` همه چیز را می‌سازد و همه آزمون‌ها را روی ویندوز (MinGW) و لینوکس (GCC) اجرا می‌کند و هشدارهای کامپایلر را خطا حساب می‌کند. این فایل از Qt 6.8.3، قدیمی‌ترین نسخه پشتیبانی‌شده، استفاده می‌کند تا توسعه روی Qt جدیدتر بی‌صدا حداقل نسخه را بالا نبرد. روی هر pull request و هر push به main اجرا می‌شود. MSVC هنوز پوشش داده نشده است.
+
+مدل‌های نما و QML آزمون خودکار ندارند؛ آن‌ها را با شبیه‌ساز دستی بررسی کنید (راهنمای کاربری، بخش ۷).
 
 # ۹- توسعه سامانه
 
