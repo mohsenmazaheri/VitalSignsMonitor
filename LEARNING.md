@@ -56,6 +56,8 @@ Short daily notes: what I built, what I learned, what I would answer in an inter
 - Why only high priority latches, and why an audio pause must not be possible with no alarm present.
 - `QSoundEffect` plays WAV only, so generated tones go through a temporary file.
 - A flashing banner must not flash its own keys: the colour needs its own layer.
+- Windows exit code 0xc0000139 means a DLL lacks an entry point, usually the wrong one found via PATH.
+  In CI, Git Bash put Git's libstdc++-6.dll ahead of the compiler's; the first CI run found this.
 
 **Interview questions this answers**
 - Latched vs non-latched alarm, and acknowledge vs audio pause?

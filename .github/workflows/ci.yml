@@ -52,14 +52,17 @@ jobs:
           if command -v cygpath > /dev/null; then qt_dir="$(cygpath -m "$qt_dir")"; fi
           echo "QTDIR=$qt_dir" >> "$GITHUB_ENV"
 
+      # Not bash: on Windows, Git Bash puts its own mingw64/bin first in PATH, and the
+      # test programs then load Git's libstdc++-6.dll instead of the compiler's
+      # (exit code 0xc0000139, entry point not found).
       - name: Configure
-        shell: bash
+        shell: pwsh
         run: cmake --preset ${{ matrix.preset }} -DVSM_WARNINGS_AS_ERRORS=ON
 
       - name: Build
-        shell: bash
+        shell: pwsh
         run: cmake --build --preset ${{ matrix.preset }} --parallel
 
       - name: Test
-        shell: bash
+        shell: pwsh
         run: ctest --preset ${{ matrix.preset }}
