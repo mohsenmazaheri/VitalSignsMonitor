@@ -20,13 +20,17 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests/bin")
 add_executable(vsm_unit_tests
     protocol/Crc16Test.cpp
     protocol/FrameCodecTest.cpp
+    protocol/FrameDecoderFuzzTest.cpp
     protocol/FrameDecoderTest.cpp
     protocol/MessagesTest.cpp
+    audit/FileAuditLogTest.cpp
     core/AlarmEvaluatorTest.cpp
     core/AlarmLimitsTest.cpp
+    core/AlarmManagerTest.cpp
+    core/AlarmToneTest.cpp
     core/SweepBufferTest.cpp
 )
-target_link_libraries(vsm_unit_tests PRIVATE vsm::protocol vsm::core GTest::gtest_main)
+target_link_libraries(vsm_unit_tests PRIVATE vsm::protocol vsm::core vsm::audit GTest::gtest_main)
 vsm_set_warnings(vsm_unit_tests)
 gtest_discover_tests(vsm_unit_tests)
 

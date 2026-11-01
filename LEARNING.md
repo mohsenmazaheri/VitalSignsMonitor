@@ -41,3 +41,25 @@ Short daily notes: what I built, what I learned, what I would answer in an inter
 **Interview questions this answers**
 - How do you test a monitor against hardware faults you cannot easily reproduce? (simulator with fault injection)
 - How do you detect lost data on a serial link? (sequence numbers + CRC + watchdog)
+
+## 2026-11-01 - Alarm manager, audit log, CI (week 3)
+
+**Built**
+- `AlarmManager`: latching, acknowledge, audio pause. Pure C++, "now" comes in as a parameter.
+- Audit log: `IAuditLog` in core, `FileAuditLog` (CSV), `AuditLogModel` as decorator for the EVENTS window.
+- Alarm melodies generated in code (`makeAlarmTone`, `encodeWav`), played with `QSoundEffect`.
+- Randomised decoder tests with fixed seeds, and a GitHub Actions workflow. 121 tests in total.
+- The end-to-end run found a real bug: an operator's "resume audio" was logged as `system`.
+
+**Learned / to review**
+- Evaluator vs manager: "what is true now" is stateless, "what has the operator seen" is state.
+- Why only high priority latches, and why an audio pause must not be possible with no alarm present.
+- `QSoundEffect` plays WAV only, so generated tones go through a temporary file.
+- A flashing banner must not flash its own keys: the colour needs its own layer.
+- Windows exit code 0xc0000139 means a DLL lacks an entry point, usually the wrong one found via PATH.
+  In CI, Git Bash put Git's libstdc++-6.dll ahead of the compiler's; the first CI run found this.
+
+**Interview questions this answers**
+- Latched vs non-latched alarm, and acknowledge vs audio pause?
+- How do you test time-dependent logic without sleeping?
+- What belongs in an audit trail, and what must never be in it?

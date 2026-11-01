@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vsm/core/Alarm.h"
+#include "vsm/core/AlarmManager.h"
 
 #include <QAbstractListModel>
 #include <QtQml/qqmlregistration.h>
@@ -9,8 +9,8 @@
 
 namespace vsm::app {
 
-/// Read-only list model of the currently active alarms, highest priority first.
-/// Exposed to QML; the content is replaced by MonitorViewModel after each evaluation.
+/// Read-only list model of the alarms known to the AlarmManager, most important first.
+/// Exposed to QML; the content is replaced by MonitorViewModel after each change.
 class AlarmListModel : public QAbstractListModel {
     Q_OBJECT
     QML_ELEMENT
@@ -20,6 +20,8 @@ class AlarmListModel : public QAbstractListModel {
     /// 0 = no alarm, otherwise the value of vsm::core::AlarmPriority (1..3).
     Q_PROPERTY(int highestPriority READ highestPriority NOTIFY countChanged)
     Q_PROPERTY(QString topMessage READ topMessage NOTIFY countChanged)
+    /// The state of the first alarm: "ACTIVE", "LATCHED", "ACKNOWLEDGED" or empty.
+    Q_PROPERTY(QString topState READ topState NOTIFY countChanged)
 
 public:
     enum Role {
@@ -28,6 +30,7 @@ public:
         PriorityRole,
         PriorityNameRole,
         TechnicalRole,
+        StateRole,
     };
     Q_ENUM(Role)
 
@@ -38,18 +41,19 @@ public:
     [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
 
     /// Replaces the content; does nothing if the alarms did not change
-    /// (avoids needless QML delegate re-creation 25 times per second).
-    void setAlarms(std::vector<core::Alarm> alarms);
+    /// (avoids needless QML delegate re-creation).
+    void setAlarms(std::vector<core::ManagedAlarm> alarms);
 
     [[nodiscard]] int highestPriority() const;
     [[nodiscard]] QString topMessage() const;
-    [[nodiscard]] const std::vector<core::Alarm>& alarms() const noexcept { return m_alarms; }
+    [[nodiscard]] QString topState() const;
+    [[nodiscard]] const std::vector<core::ManagedAlarm>& alarms() const noexcept { return m_alarms; }
 
 signals:
     void countChanged();
 
 private:
-    std::vector<core::Alarm> m_alarms;
+    std::vector<core::ManagedAlarm> m_alarms;
 };
 
 } // namespace vsm::app

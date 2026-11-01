@@ -2,14 +2,14 @@
 title: Developer Guide
 subtitle: VitalSigns Monitor - architecture, code structure, building, testing and extending
 docid: VSM-DEV-001
-version: 1.0
+version: 1.1
 date: 1 November 2026
 author: Mohsen Mazaheri
 status: Draft for review
 lang: en
 output: EN/VitalSignsMonitor-02-Developer-Guide-EN.docx
 header: VitalSigns Monitor · Developer Guide
-history: 1.0 | 1 Nov 2026 | Mohsen Mazaheri | First issue, based on software version 0.1.0
+history: 1.0 | 1 Nov 2026 | Mohsen Mazaheri | First issue, based on software version 0.1.0; 1.1 | 1 Nov 2026 | Mohsen Mazaheri | Alarm manager, audit log, alarm sounds and CI (software version 0.2.0)
 notice: **Synthetic data only - not a medical device.** Never add real patient data to the code, the tests or the repository.
 ---
 
@@ -38,8 +38,9 @@ This guide is for developers who build, change or review VitalSigns Monitor. It 
 | Framework | Qt 6.8 or newer | Built and tested with Qt 6.12.0 (MinGW 64-bit) |
 | User interface | Qt Quick / QML, Qt Quick Controls (Fusion style) | ECG drawn with the Qt Quick scene graph |
 | I/O | Qt Network (QTcpSocket, QTcpServer), Qt Serial Port | |
+| Sound | Qt Multimedia (QSoundEffect) | Melodies generated in code |
 | Build | CMake 3.25+, Ninja or MinGW Makefiles | CMakePresets.json included |
-| Tests | GoogleTest 1.15 (fetched at configure time), CTest | 63 tests |
+| Tests | GoogleTest 1.15 (fetched at configure time), CTest | 121 tests |
 | Compilers | GCC 13 (MinGW), MSVC 2022, Clang 14+ | Warnings on, warning-free |
 
 # 3. Repository layout
@@ -52,6 +53,7 @@ VitalSignsMonitor/
   src/
     protocol/             wire format: Frame, FrameDecoder, Messages, CRC-16   (C++20, no Qt)
     core/                 domain: VitalSigns, alarms, SweepBuffer             (C++20, no Qt)
+    audit/                FileAuditLog: audit trail as a CSV file             (C++20, no Qt)
     device/               ITransport, TCP/serial transports, DeviceSession, DeviceController
     ui/                   shared QML module VitalSigns.Ui: WaveformSeries, WaveformItem
     app/                  monitor: main.cpp, view models, QML
@@ -61,6 +63,7 @@ VitalSignsMonitor/
     gui/                  VitalSignsPatientSimulator (front panel, QML)
   tests/                  GoogleTest suites (protocol, core, device, simulation)
   docs/                   ARCHITECTURE.md, PROTOCOL.md, images/
+  .github/workflows/      ci.yml: build and test on Windows and Linux
   Documents/              this document set (Word) and its sources
 ```
 
@@ -70,10 +73,11 @@ VitalSignsMonitor/
 
 | Layer | Folder | Depends on | Main types |
 |---|---|---|---|
-| app | src/app | ui, device, core, Qt Quick | main.cpp, MonitorViewModel, AlarmListModel, QML |
+| app | src/app | ui, device, audit, core, Qt Quick, Qt Multimedia | main.cpp, MonitorViewModel, AlarmListModel, AuditLogModel, QtAlarmSound, QML |
+| audit | src/audit | core, C++ standard library | FileAuditLog |
 | ui | src/ui | core, Qt Quick | WaveformSeries, WaveformItem |
 | device | src/device | protocol, core, Qt Network, Qt Serial Port | ITransport, TcpTransport, SerialTransport, DeviceSession, DeviceController |
-| core | src/core | C++ standard library only | VitalSigns, Alarm, AlarmLimits, IAlarmRule, AlarmEvaluator, SweepBuffer |
+| core | src/core | C++ standard library only | VitalSigns, Alarm, AlarmLimits, IAlarmRule, AlarmEvaluator, AlarmManager, AlarmTone, IAuditLog, SweepBuffer |
 | protocol | src/protocol | C++ standard library only | Frame, FrameDecoder, Messages, crc16CcittFalse |
 | simulation | tools/simulator/engine | protocol, Qt Network, Qt Serial Port | SyntheticPatient, Scenario, DeviceSimulator, IByteSink, sinks |
 | simulator apps | tools/simulator/cli and gui | simulation (and ui for the GUI) | console main.cpp, PatientSimulatorController, front-panel QML |
@@ -90,6 +94,7 @@ Dependency rules:
 |---|---|---|---|
 | vsm_protocol (vsm::protocol) | static library | vsm::protocol | protocol layer |
 | vsm_core (vsm::core) | static library | vsm::core | domain and alarms |
+| vsm_audit (vsm::audit) | static library | vsm::audit | audit trail file |
 | vsm_device (vsm::device) | static library | vsm::device | transports, session, controller |
 | vsm_ui (vsm::ui) + vsm_uiplugin | static QML module VitalSigns.Ui | vsm::ui | waveform types |
 | vsm_simulation (vsm::simulation) | static library | vsm::simulator | simulator engine |
@@ -108,7 +113,7 @@ QTcpSocket / QSerialPort
   -> DeviceSession: FrameDecoder -> parseMessage
      -> vitalsReceived(VitalSigns)        ==queued==>  DeviceController (relay)
      -> ecgSamplesReceived(mV, rate)      ==queued==>    -> MonitorViewModel
-     -> linkLostChanged / statistics      ==queued==>         -> AlarmEvaluator -> AlarmListModel
+     -> linkLostChanged / statistics      ==queued==>         -> AlarmEvaluator -> AlarmManager -> AlarmListModel, IAlarmSound, IAuditLog
                                                               -> WaveformSeries -> WaveformItem
                                                               -> QML properties
 ```
@@ -127,9 +132,11 @@ QTcpSocket / QSerialPort
 | Open/closed | New alarm = new IAlarmRule; new transport = new ITransport; new simulator output = new IByteSink; new scenario = new entry in makeScenario() |
 | Liskov substitution | FakeTransport, TcpTransport and SerialTransport are interchangeable for DeviceSession (proved by the tests) |
 | Interface segregation | ITransport has four methods and three signals; IByteSink is separate from ITransport |
-| Dependency inversion | DeviceSession depends on ITransport; DeviceController gets a TransportFactory; MonitorViewModel gets its AlarmEvaluator injected; DeviceSimulator gets an IByteSink and a clock |
+| Dependency inversion | DeviceSession depends on ITransport; DeviceController gets a TransportFactory; MonitorViewModel gets AlarmEvaluator, AlarmManager and IAlarmSound injected; AlarmManager writes to IAuditLog; DeviceSimulator gets an IByteSink and a clock |
 | Strategy | IAlarmRule with LimitAlarmRule and ConditionAlarmRule |
 | Facade | DeviceController hides the thread and the session from the user interface |
+| Decorator | AuditLogModel shows each event on screen and passes it on to the real IAuditLog |
+| State machine | AlarmManager: Active, Acknowledged, Latched |
 | Factory | createDefaultTransport(), createDefaultSink(), makeDefaultAlarmRules(), makeScenario() |
 | MVVM | QML views bind to MonitorViewModel, AlarmListModel, WaveformSeries and PatientSimulatorController |
 | Composition root | src/app/main.cpp and tools/simulator/gui/main.cpp build the object graphs |
@@ -151,7 +158,12 @@ QTcpSocket / QSerialPort
 - `IAlarmRule::evaluate(context)` returns an alarm or std::nullopt. `LimitAlarmRule` compares a value with a limit; `ConditionAlarmRule` uses a predicate.
 - `makeDefaultAlarmRules(AlarmLimits)` creates the nine default rules and rejects inconsistent limits.
 - `AlarmEvaluator` evaluates all rules and keeps only the highest priority per source, sorted by priority.
+- `AlarmManager` adds memory to the stateless evaluator. An alarm is Active, Acknowledged or Latched. High-priority alarms latch until acknowledged; the audio pause lasts 2 minutes and a new medium or high alarm ends it. Every time-dependent call receives a monotonic "now", so tests never wait.
+- `IAuditLog` and `AuditEvent` define the audit trail. The manager only knows this interface, never a file.
+- `makeAlarmTone()` generates one repetition of the melody per priority (high 10 pulses every 6 s, medium 3 every 8 s, low 2 every 20 s); `encodeWav()` wraps it in a WAV file image.
 - `SweepBuffer` is the ring buffer behind the ECG sweep display.
+
+Alarm chain: AlarmEvaluator says what is true now, AlarmManager remembers what the operator has seen, and the view model passes the result to the alarm list and the sound.
 
 ## 5.3 device (vsm::device)
 
@@ -176,7 +188,7 @@ signals:
 - `TcpTransport` and `SerialTransport` implement it. `createDefaultTransport(ConnectionSettings)` chooses one.
 - `DeviceSession` connects a transport to a FrameDecoder, maps messages to domain objects, runs the watchdog (`kDefaultWatchdogTimeout` = 3000 ms) and the reconnect timer (`kDefaultReconnectDelay` = 2000 ms), and counts LinkStatistics (frames, CRC errors, lost frames, sequence gaps, discarded bytes).
 - `DeviceController` owns the I/O thread and is the facade the view model talks to.
-- Logging categories: `vsm.device.controller`, `vsm.device.session`, `vsm.device.tcp`, `vsm.device.serial`.
+- Logging categories: `vsm.device.controller`, `vsm.device.session`, `vsm.device.tcp`, `vsm.device.serial`; in the app `vsm.app.sound`.
 
 ## 5.4 ui (vsm::ui, QML module VitalSigns.Ui)
 
@@ -188,8 +200,11 @@ signals:
 
 - `main.cpp` parses `--connect host:port`, builds DeviceController, AlarmEvaluator and MonitorViewModel, and loads the QML module VitalSigns.App.
 - `MonitorViewModel` exposes heart rate, SpO2, sensor flags, alarm priorities, connection state, link statistics and the last error; it offers connectTcp(), connectSerial(), disconnectDevice() and availableSerialPorts().
-- `AlarmListModel` is the list model behind the alarm banner.
-- QML: Main.qml, ConnectionBar.qml, AlarmBanner.qml, WaveformPanel.qml, NumericTile.qml, Theme.qml (colour singleton).
+- `AlarmListModel` is the list model behind the alarm banner and the EVENTS window.
+- `AuditLogModel` keeps the latest 500 events for the EVENTS window and passes each one on to the real log (decorator).
+- `IAlarmSound` is the sound interface. `QtAlarmSound` writes the generated melodies to a temporary folder and loops them with QSoundEffect, which plays WAV files only; `NullAlarmSound` is used with `--no-sound`.
+- `FileAuditLog` (library vsm_audit, no Qt) appends one flushed CSV line per event: `time_utc,event,actor,code,priority,detail`. `isOk()` reports a file that cannot be opened.
+- QML: Main.qml, ConnectionBar.qml, AlarmBanner.qml, EventLogPopup.qml, WaveformPanel.qml, NumericTile.qml, Theme.qml (colour singleton).
 
 ## 5.6 Simulator engine (vsm::simulator)
 
@@ -256,7 +271,7 @@ The warning policy is in `cmake/CompilerWarnings.cmake`: GCC/Clang use -Wall -We
 
 ## 8.1 Running the tests
 
-Run `ctest --preset mingw-debug` (or "Run All Tests" in Qt Creator). All 63 tests must pass before a change is committed.
+Run `ctest --preset mingw-debug` (or "Run All Tests" in Qt Creator). All 121 tests must pass before a change is committed.
 
 | Test executable | Suite | Tests | What it proves |
 |---|---|---|---|
@@ -267,6 +282,10 @@ Run `ctest --preset mingw-debug` (or "Run All Tests" in Qt Creator). All 63 test
 | vsm_unit_tests | DefaultAlarmsTest, AlarmEvaluator | 11 | Exclusive limits, critical replaces medium, sorting, missing values, sensor alarms, link-loss suppression, custom rules |
 | vsm_unit_tests | AlarmLimits | 3 | Defaults valid, ordering of heart-rate and SpO2 limits |
 | vsm_unit_tests | SweepBuffer | 4 | Empty start, wrap-around, clear, zero capacity rejected |
+| vsm_unit_tests | FrameDecoderFuzz | 4 | Random bytes, random chunks and flipped bytes (fixed seeds): no crash, bounded memory, never a wrong frame |
+| vsm_unit_tests | AlarmManagerTest, AuditEvents | 26 | Latching, acknowledge, audio pause and its early end, sorting, sound priority, audit entries, short critical episode |
+| vsm_unit_tests | AlarmTone, Wav, AlarmToneByPriority | 16 | Pulse count, length, loopable end, no clipping, WAV header and byte order |
+| vsm_unit_tests | AuditFormat, FileAuditLogTest | 12 | UTC time, CSV quoting, header once, immediate flush, append, unwritable file |
 | vsm_device_tests | DeviceSessionTest | 10 | Session with FakeTransport: vitals mapping, ECG units, split frames, gaps and CRC errors, wrap-around, watchdog, reconnect |
 | vsm_simulation_tests | DeviceSimulatorTest | 10 | Engine with FakeSink and a fake clock: sample rate, numerics, gradual HR, sensors off, cable, corruption, scenarios, power off |
 
@@ -283,6 +302,12 @@ Run `ctest --preset mingw-debug` (or "Run All Tests" in Qt Creator). All 63 test
 2. Use fakes for hardware and time; never sleep in a test.
 3. Name the test after the behaviour, for example `ReportsLinkLostAfterWatchdogTimeout`.
 4. Build and run ctest; the new test is discovered automatically (gtest_discover_tests).
+
+## 8.4 Continuous integration
+
+`.github/workflows/ci.yml` builds everything and runs all tests on Windows (MinGW) and Linux (GCC) with warnings as errors. It uses Qt 6.8.3, the oldest supported version, so developing on a newer Qt cannot silently raise the minimum. It runs on every pull request and every push to main. MSVC is not covered yet.
+
+The view models and QML have no automated tests; check them by hand with the simulator (User Guide, section 7).
 
 # 9. Extending the system
 

@@ -13,10 +13,14 @@ qt_add_qml_module(VitalSignsMonitor
     SOURCES
         MonitorViewModel.h MonitorViewModel.cpp
         AlarmListModel.h AlarmListModel.cpp
+        AuditLogModel.h AuditLogModel.cpp
+        IAlarmSound.h
+        QtAlarmSound.h QtAlarmSound.cpp
     QML_FILES
         qml/Main.qml
         qml/ConnectionBar.qml
         qml/AlarmBanner.qml
+        qml/EventLogPopup.qml
         qml/WaveformPanel.qml
         qml/NumericTile.qml
         qml/Theme.qml
@@ -24,9 +28,11 @@ qt_add_qml_module(VitalSignsMonitor
 
 target_link_libraries(VitalSignsMonitor PRIVATE
     Qt6::Gui
+    Qt6::Multimedia
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::SerialPort
+    vsm::audit
     vsm::core
     vsm::device
     vsm::ui

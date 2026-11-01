@@ -4,14 +4,14 @@ A desktop vital-signs monitor written in **C++20** and **Qt 6 / QML**. It receiv
 simulated bedside device over **TCP or a serial port**, draws a live ECG sweep, shows heart rate and
 SpO2, and raises prioritised **alarms**.
 
-![VitalSigns Monitor v0.1](docs/images/monitor-v0.1.png)
+![VitalSigns Monitor](docs/images/monitor-main.png)
 
 > **Synthetic data only. This is not a medical device.**
 > All signals come from the included simulator, which generates a synthetic ECG and synthetic
 > numbers. No real patient data is used, stored or transmitted. The project is a learning and
 > portfolio project and must not be used for diagnosis or patient monitoring.
 
-## Features (v0.1)
+## Features (v0.2)
 
 - **Patient simulator with a hardware-style front panel** (`VitalSignsPatientSimulator`): colour
   LCD with the generated ECG, knobs and keys for heart rate and SpO2, "leads off" / "probe off"
@@ -26,9 +26,14 @@ SpO2, and raises prioritised **alarms**.
 - **Automatic reconnect** and a **watchdog** that raises "No data from device" after 3 s.
 - **Alarm engine**: high/medium/low priorities, one alarm per parameter, technical alarms for
   leads off, probe off and lost link. Rules are pluggable (Strategy pattern).
+- **Alarm manager**: high-priority alarms latch until acknowledged, **ACKNOWLEDGE** and a two-minute
+  **AUDIO PAUSE** key, alarm melodies per priority (generated in code, played with Qt Multimedia).
+- **Audit log**: every alarm change, operator key and connection event goes to a CSV file and to the
+  on-screen **EVENTS** list. No patient data.
 - **Qt Quick UI**: ECG sweep drawn with the Qt Quick scene graph, numeric tiles, alarm banner, link
   statistics (frames, CRC errors, lost frames).
-- **63 unit tests** with GoogleTest (protocol, decoder, alarms, buffers, device session with a
+- **121 unit tests** with GoogleTest (protocol, randomised decoder tests, alarms, alarm manager, audit log,
+  alarm tones, buffers, device session with a
   fake transport, simulator engine with a fake clock).
 
 ![Patient simulator front panel](docs/images/patient-simulator.png)
@@ -54,7 +59,7 @@ Details, design decisions and the SOLID mapping: [docs/ARCHITECTURE.md](docs/ARC
 ## Build
 
 Requirements: CMake 3.25+, a C++20 compiler (MSVC 2022, GCC 11+ or Clang 14+), Qt 6.8+ with the
-modules **Qt Quick, Qt Quick Controls, Qt Network, Qt Serial Port**. GoogleTest is downloaded
+modules **Qt Quick, Qt Quick Controls, Qt Multimedia, Qt Network, Qt Serial Port**. GoogleTest is downloaded
 automatically at configure time.
 
 **Qt Creator:** open `CMakeLists.txt` and pick a Qt 6.8+ kit (MinGW or MSVC).
@@ -109,6 +114,9 @@ ctest --preset linux-debug
    VitalSignsMonitor --connect 127.0.0.1:5555
    ```
 
+   Other options: `--no-sound` (visual alarm signals only), `--audit-dir <folder>` (default:
+   `%LOCALAPPDATA%\Mohsen Mazaheri\VitalSigns Monitor\audit` on Windows).
+
 On Windows the Qt `bin` folder must be on `PATH` (Qt Creator does this for you), or run
 `windeployqt` on the executable.
 
@@ -124,17 +132,24 @@ In the patient simulator choose **SERIAL**, port `COM5`, **OPEN**; in the monito
 | **LEADS OFF** | HR shows `---`, flat ECG, technical alarm "ECG leads off" |
 | **CABLE UNPLUGGED** | after 3 s "No data from device"; after plugging in, "Lost frames" counts the gap |
 | **CORRUPT 5 %** | "CRC errors" rises, the display keeps running |
+| HR preset **160**, then **75** | when HR falls below 150 the red alarm stays and reads "ENDED - ACKNOWLEDGE": it is latched |
+| Monitor: **ACKNOWLEDGE** | sound stops and flashing stops; a latched alarm disappears |
+| Monitor: **AUDIO PAUSE** | sound stops for 2:00 (countdown on the key); a new medium or high alarm ends the pause |
+| Monitor: **EVENTS** | current alarms, event log and the path of the audit file |
 
 ![Monitor with an HR alarm](docs/images/monitor-alarm.png)
+
+![Current alarms and event log](docs/images/monitor-events.png)
 
 ## Project layout
 
 ```
 src/protocol/    wire format: Frame, FrameDecoder, Messages, CRC-16           (C++20, no Qt)
-src/core/        domain: VitalSigns, AlarmEvaluator, alarm rules, SweepBuffer (C++20, no Qt)
+src/core/        domain: VitalSigns, alarm rules, AlarmEvaluator, AlarmManager, AlarmTone (C++20, no Qt)
 src/device/      ITransport, TcpTransport, SerialTransport, DeviceSession, DeviceController
 src/ui/          shared QML module VitalSigns.Ui: WaveformSeries, WaveformItem
-src/app/         main.cpp (composition root), view models, QML
+src/audit/       FileAuditLog: audit trail as a CSV file (C++20, no Qt)
+src/app/         main.cpp (composition root), view models, alarm sound, QML
 tools/simulator/engine/  vsm_simulation: SyntheticPatient, Scenario, DeviceSimulator, TCP/serial sinks
 tools/simulator/cli/     VitalSignsSimulator (console)
 tools/simulator/gui/     VitalSignsPatientSimulator (front panel, QML)
@@ -153,7 +168,7 @@ Setup Guide. They are generated from the Markdown-like sources in `Documents/sou
 ## Roadmap
 
 - [x] Week 2: CMake project, simulator, protocol, parsing in a separate thread
-- [ ] Week 3: alarm manager (latching, silence, audio), audit log, more tests, GitHub Actions (Windows + Linux)
+- [x] Week 3: alarm manager (latching, acknowledge, audio pause, sounds), audit log, more tests, GitHub Actions (Windows + Linux)
 - [ ] Week 4: medical-software documentation as a learning exercise (risk table in the style of
       ISO 14971, software requirements and traceability in the style of IEC 62304), Linux build in WSL2
 - [ ] Later: stream data to the CareHub web app (ASP.NET Core + SignalR)

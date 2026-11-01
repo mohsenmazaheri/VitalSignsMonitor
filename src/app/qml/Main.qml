@@ -39,8 +39,10 @@ ApplicationWindow {
         }
 
         AlarmBanner {
+            id: alarmBanner
             Layout.fillWidth: true
-            alarms: window.monitor.alarms
+            monitor: window.monitor
+            onEventLogRequested: eventLog.open()
         }
 
         RowLayout {
@@ -104,5 +106,15 @@ ApplicationWindow {
                 font.bold: true
             }
         }
+    }
+
+    EventLogPopup {
+        id: eventLog
+        monitor: window.monitor
+        // Below the banner: the alarm and its keys stay reachable while the log is open.
+        x: (window.width - width) / 2
+        y: alarmBanner.y + alarmBanner.height + Theme.spacing
+        width: Math.min(window.width - 4 * Theme.spacing, 900)
+        height: window.height - y - 4 * Theme.spacing
     }
 }

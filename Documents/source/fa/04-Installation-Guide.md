@@ -2,14 +2,14 @@
 title: راهنمای نصب و راه‌اندازی
 subtitle: VitalSigns Monitor - ابزارها، ساخت، اجرای اول، توزیع و درگاه‌های سریال مجازی
 docid: VSM-INS-001
-version: 1.0
+version: 1.1
 date: ۱۰ آبان ۱۴۰۵
 author: محسن مظاهری
 status: پیش‌نویس برای بررسی
 lang: fa
 output: FA/VitalSignsMonitor-04-Installation-Guide-FA.docx
 header: VitalSigns Monitor · راهنمای نصب و راه‌اندازی
-history: 1.0 | ۱۴۰۵/۰۸/۱۰ | محسن مظاهری | انتشار اول، بر اساس نسخه 0.1.0 نرم‌افزار
+history: 1.0 | ۱۴۰۵/۰۸/۱۰ | محسن مظاهری | انتشار اول، بر اساس نسخه 0.1.0 نرم‌افزار; 1.1 | ۱۴۰۵/۰۸/۱۰ | محسن مظاهری | مدیر هشدار، ثبت رویداد، صدای هشدار و CI (نسخه 0.2.0 نرم‌افزار)
 notice: **فقط داده مصنوعی - این نرم‌افزار وسیله پزشکی نیست.** برنامه‌ها را فقط برای آموزش، نمایش و آزمون نرم‌افزار نصب کنید.
 ---
 
@@ -43,7 +43,7 @@ notice: **فقط داده مصنوعی - این نرم‌افزار وسیله �
 
 | نرم‌افزار | نسخه | کاربرد | منبع |
 |---|---|---|---|
-| Qt (متن‌باز) | 6.8 یا جدیدتر؛ بررسی‌شده با 6.12.0 | چارچوب: Core، Gui، Network، Serial Port، Quick، Quick Controls 2 | Qt Online Installer (حساب رایگان Qt) |
+| Qt (متن‌باز) | 6.8 یا جدیدتر؛ بررسی‌شده با 6.12.0 | چارچوب: Core، Gui، Multimedia، Network، Serial Port، Quick، Quick Controls 2 | Qt Online Installer (حساب رایگان Qt) |
 | MinGW | 13.1 (64-bit) | کامپایلر C++20 (g++) | نصب‌کننده Qt، بخش Developer and Designer Tools |
 | CMake | 3.25 یا جدیدتر | سامانه ساخت | نصب‌کننده Qt یا cmake.org |
 | Ninja | هر نسخه جدید | ابزار ساخت سریع | نصب‌کننده Qt |
@@ -64,6 +64,7 @@ notice: **فقط داده مصنوعی - این نرم‌افزار وسیله �
 |---|---|
 | Qt > Qt 6.12.0 > MinGW 13.1.0 64-bit | بله |
 | Qt > Qt 6.12.0 > Additional Libraries > Qt Serial Port | بله - بدون آن CMake با خطای «Qt6SerialPort not found» متوقف می‌شود |
+| Qt > Qt 6.12.0 > Additional Libraries > Qt Multimedia | بله - برای صدای هشدار لازم است؛ بدون آن CMake با خطای «Qt6Multimedia not found» متوقف می‌شود |
 | Qt > Developer and Designer Tools > MinGW 13.1.0 64-bit | بله |
 | Qt > Developer and Designer Tools > CMake و Ninja | بله |
 | Qt > Developer and Designer Tools > Qt Creator | پیشنهادی |
@@ -140,7 +141,7 @@ cmake --build build/mingw-debug --parallel
 ctest --preset mingw-debug
 ```
 
-نتیجه مورد انتظار: «100% tests passed, 0 tests failed out of 63». در Qt Creator: Tools > Tests > Run All Tests.
+نتیجه مورد انتظار: «100% tests passed, 0 tests failed out of 121». در Qt Creator: Tools > Tests > Run All Tests.
 
 ## ۸-۲ اجرای اول
 
@@ -231,6 +232,7 @@ ctest --preset linux-debug
 | پیام یا نشانه | علت | راه حل |
 |---|---|---|
 | CMake: Failed to find required Qt component "SerialPort" | ماژول Qt Serial Port برای کیت انتخاب‌شده نصب نیست | MaintenanceTool > Add or remove components > Qt 6.12.0 > Additional Libraries > Qt Serial Port، سپس دوباره CMake را اجرا کنید |
+| CMake: Failed to find required Qt component "Multimedia" | ماژول Qt Multimedia برای کیت انتخاب‌شده نصب نیست | MaintenanceTool > Add or remove components > Qt 6.12.0 > Additional Libraries > Qt Multimedia، سپس دوباره CMake را اجرا کنید |
 | CMake: Could not find a package configuration file provided by "Qt6" | CMAKE_PREFIX_PATH یا QTDIR تنظیم نشده | QTDIR را تنظیم کنید (برای presetها) یا -DCMAKE_PREFIX_PATH=C:/Qt/6.12.0/mingw_64 را بدهید |
 | CMake نمی‌تواند GoogleTest را دانلود کند | در اولین پیکربندی اینترنت وصل نیست | یک بار به اینترنت وصل شوید یا با -DVSM_BUILD_TESTS=OFF پیکربندی کنید |
 | هنگام اجرای فایل exe پیام «Qt6Core.dll was not found» | پوشه bin کیوت در PATH نیست | از Qt Creator اجرا کنید، C:\Qt\6.12.0\mingw_64\bin را به PATH اضافه کنید یا توزیع کنید (بخش ۹) |
@@ -242,6 +244,6 @@ ctest --preset linux-debug
 
 # ۱۴- حذف نصب
 
-- پوشه پروژه (و در صورت وجود، پوشه deploy) را پاک کنید. نسخه 0.1.0 هیچ تنظیماتی از خودش ذخیره نمی‌کند (نه QSettings و نه رجیستری).
+- پوشه پروژه (و در صورت وجود، پوشه deploy) را پاک کنید. نسخه 0.2.0 هیچ تنظیماتی ذخیره نمی‌کند (نه QSettings و نه رجیستری). تنها فایل‌های دیگر، ثبت رویدادها در `%LOCALAPPDATA%\Mohsen Mazaheri\VitalSigns Monitor\audit` هستند؛ اگر لازمشان ندارید، این پوشه را هم پاک کنید.
 - Qt را با `C:\Qt\MaintenanceTool.exe` و گزینه Remove all components حذف کنید.
 - com0com را با حذف‌کننده آن از فهرست برنامه‌های ویندوز حذف کنید.

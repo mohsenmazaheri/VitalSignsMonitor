@@ -6,7 +6,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 project(VitalSignsMonitor
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "Desktop vital-signs monitor (C++20, Qt 6/QML) for a simulated bedside device"
     HOMEPAGE_URL "https://github.com/mohsenmazaheri/VitalSignsMonitor"
     LANGUAGES CXX)
@@ -34,7 +34,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(CompilerWarnings)
 
 # --- Qt -----------------------------------------------------------------------
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Network SerialPort Quick QuickControls2)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Multimedia Network SerialPort Quick QuickControls2)
 qt_standard_project_setup(REQUIRES 6.8)
 
 # --- Targets ------------------------------------------------------------------

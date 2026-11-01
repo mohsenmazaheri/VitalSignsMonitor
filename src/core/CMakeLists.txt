@@ -8,11 +8,17 @@ add_library(vsm_core STATIC
     include/vsm/core/IAlarmRule.h
     include/vsm/core/AlarmRules.h
     include/vsm/core/AlarmEvaluator.h
+    include/vsm/core/AlarmManager.h
+    include/vsm/core/AlarmTone.h
+    include/vsm/core/AuditLog.h
     include/vsm/core/SweepBuffer.h
     Alarm.cpp
     AlarmLimits.cpp
     AlarmRules.cpp
     AlarmEvaluator.cpp
+    AlarmManager.cpp
+    AlarmTone.cpp
+    AuditLog.cpp
 )
 add_library(vsm::core ALIAS vsm_core)
 
