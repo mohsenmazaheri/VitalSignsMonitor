@@ -71,3 +71,38 @@ if(TARGET vsm_simulation)
     endif()
     gtest_discover_tests(vsm_simulation_tests DISCOVERY_MODE PRE_TEST)
 endif()
+
+# --- Monitor view model tests (alarm chain, stale data, audit; no QML, no window) -
+# The view model holds safety behaviour (clearing stale data), so it is tested too.
+# Its sources are compiled in directly: they belong to the executable VitalSignsMonitor.
+set(VSM_APP_DIR ${CMAKE_SOURCE_DIR}/src/app)
+add_executable(vsm_app_tests
+    device/main.cpp
+    device/FakeTransport.h
+    app/MonitorViewModelTest.cpp
+    ${VSM_APP_DIR}/AlarmListModel.h ${VSM_APP_DIR}/AlarmListModel.cpp
+    ${VSM_APP_DIR}/AuditLogModel.h ${VSM_APP_DIR}/AuditLogModel.cpp
+    ${VSM_APP_DIR}/IAlarmSound.h
+    ${VSM_APP_DIR}/MonitorViewModel.h ${VSM_APP_DIR}/MonitorViewModel.cpp
+)
+target_include_directories(vsm_app_tests PRIVATE ${VSM_APP_DIR} device)
+target_compile_definitions(vsm_app_tests PRIVATE VSM_VERSION="${PROJECT_VERSION}")
+target_link_libraries(vsm_app_tests PRIVATE vsm::device vsm::core vsm::ui Qt6::Qml Qt6::SerialPort GTest::gtest)
+vsm_set_warnings(vsm_app_tests)
+if(WIN32)
+    add_custom_command(TARGET vsm_app_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_RUNTIME_DLLS:vsm_app_tests> $<TARGET_FILE_DIR:vsm_app_tests>
+        COMMAND_EXPAND_LISTS
+    )
+endif()
+gtest_discover_tests(vsm_app_tests DISCOVERY_MODE PRE_TEST)
+
+# --- Medical-style documents match the code and the tests -------------------------
+# Skipped when no PowerShell is available; CI has it on Windows and Linux.
+find_program(VSM_POWERSHELL NAMES pwsh powershell)
+if(VSM_POWERSHELL)
+    add_test(NAME traceability_check
+        COMMAND ${VSM_POWERSHELL} -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_SOURCE_DIR}/tools/check-traceability.ps1
+    )
+endif()

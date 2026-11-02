@@ -2,14 +2,14 @@
 title: Installation and Setup Guide
 subtitle: VitalSigns Monitor - tools, build, first start, deployment and virtual serial ports
 docid: VSM-INS-001
-version: 1.1
-date: 1 November 2026
+version: 1.2
+date: 2 November 2026
 author: Mohsen Mazaheri
 status: Draft for review
 lang: en
 output: EN/VitalSignsMonitor-04-Installation-Guide-EN.docx
 header: VitalSigns Monitor · Installation and Setup Guide
-history: 1.0 | 1 Nov 2026 | Mohsen Mazaheri | First issue, based on software version 0.1.0; 1.1 | 1 Nov 2026 | Mohsen Mazaheri | Alarm manager, audit log, alarm sounds and CI (software version 0.2.0)
+history: 1.0 | 1 Nov 2026 | Mohsen Mazaheri | First issue, based on software version 0.1.0; 1.1 | 1 Nov 2026 | Mohsen Mazaheri | Alarm manager, audit log, alarm sounds and CI (software version 0.2.0); 1.2 | 2 Nov 2026 | Mohsen Mazaheri | Stricter data watchdog, impossible values, risk analysis and traceability (software version 0.3.0)
 notice: **Synthetic data only - not a medical device.** Install the programs only for learning, demonstration and software testing.
 ---
 
@@ -141,7 +141,7 @@ Build options: `-DVSM_BUILD_TESTS=OFF` skips the tests (and the GoogleTest downl
 ctest --preset mingw-debug
 ```
 
-Expected result: "100% tests passed, 0 tests failed out of 121". In Qt Creator: Tools > Tests > Run All Tests.
+Expected result: "100% tests passed, 0 tests failed out of 140". In Qt Creator: Tools > Tests > Run All Tests.
 
 ## 8.2 First start
 
@@ -205,7 +205,7 @@ change CNCB0 PortName=COM6
 
 # 11. Linux
 
-Not yet verified; the Linux build is planned for milestone M3 (WSL2).
+CI builds the project and runs all tests on Ubuntu with Qt 6.8.3. The programs have not been run on Linux by hand, and a build in WSL2 has not been tried.
 
 1. Install the Qt 6.8+ desktop kit (gcc_64) with the Qt Online Installer, including Qt Serial Port. Distribution packages are often older than Qt 6.8.
 2. Install the build tools, for example on Debian/Ubuntu: `sudo apt install build-essential ninja-build libgl1-mesa-dev` and a CMake of version 3.25 or newer.
@@ -244,6 +244,6 @@ ctest --preset linux-debug
 
 # 14. Uninstalling
 
-- Delete the project folder (and the deploy folder, if any). Version 0.2.0 stores no settings (no QSettings, no registry entries). The only other files are the audit logs in `%LOCALAPPDATA%\Mohsen Mazaheri\VitalSigns Monitor\audit`; delete this folder too if you do not need them.
+- Delete the project folder (and the deploy folder, if any). Version 0.3.0 stores no settings (no QSettings, no registry entries). The only other files are the audit logs in `%LOCALAPPDATA%\Mohsen Mazaheri\VitalSigns Monitor\audit`; delete this folder too if you do not need them.
 - Remove Qt with `C:\Qt\MaintenanceTool.exe` > Remove all components.
 - Remove com0com with its uninstaller in the Windows apps list.

@@ -160,9 +160,118 @@ TEST_F(DeviceSessionTest, WatchdogReportsLostLinkAndRecoveryClearsIt)
 
     ASSERT_TRUE(waitUntil([&] { return session->isLinkLost(); }));
 
-    fake->inject(encode(protocol::HeartbeatMessage{1}, 0));
+    fake->inject(encode(protocol::NumericsMessage{72, 97, false, false}, 0));
+    fake->inject(encode(protocol::EcgWaveformMessage{250, {100}}, 1));
     EXPECT_FALSE(session->isLinkLost());
     EXPECT_EQ(linkLost, (std::vector<bool>{true, false}));
+}
+
+TEST_F(DeviceSessionTest, HeartbeatAloneDoesNotKeepTheLinkAlive)
+{
+    session->setWatchdogTimeout(50ms);
+    session->start();
+
+    std::uint16_t sequence = 0;
+    EXPECT_TRUE(waitUntil([&] {
+        fake->inject(encode(protocol::HeartbeatMessage{1}, sequence++));
+        return session->isLinkLost();
+    }));
+}
+
+TEST_F(DeviceSessionTest, LinkIsLostWhenNumericsStopButEcgContinues)
+{
+    session->setWatchdogTimeout(50ms);
+    session->start();
+
+    std::uint16_t sequence = 0;
+    EXPECT_TRUE(waitUntil([&] {
+        fake->inject(encode(protocol::EcgWaveformMessage{250, {100}}, sequence++));
+        return session->isLinkLost();
+    }));
+}
+
+TEST_F(DeviceSessionTest, LinkIsLostWhenEcgStopsButNumericsContinue)
+{
+    session->setWatchdogTimeout(50ms);
+    session->start();
+
+    std::uint16_t sequence = 0;
+    EXPECT_TRUE(waitUntil([&] {
+        fake->inject(encode(protocol::NumericsMessage{72, 97, false, false}, sequence++));
+        return session->isLinkLost();
+    }));
+}
+
+TEST_F(DeviceSessionTest, HealthyStreamKeepsTheLinkAlive)
+{
+    session->setWatchdogTimeout(100ms);
+    session->start();
+
+    std::uint16_t sequence = 0;
+    QElapsedTimer clock;
+    clock.start();
+    (void)waitUntil([&] {
+        fake->inject(encode(protocol::NumericsMessage{72, 97, false, false}, sequence++));
+        fake->inject(encode(protocol::EcgWaveformMessage{250, {100}}, sequence++));
+        return clock.elapsed() > 300; // well past the timeout
+    });
+
+    EXPECT_FALSE(session->isLinkLost());
+    EXPECT_TRUE(linkLost.empty());
+}
+
+TEST_F(DeviceSessionTest, NothingIsDeliveredUntilNumericsAndEcgAreBothBack)
+{
+    session->setWatchdogTimeout(50ms);
+    session->start();
+    ASSERT_TRUE(waitUntil([&] { return session->isLinkLost(); }));
+
+    fake->inject(encode(protocol::NumericsMessage{72, 97, false, false}, 0));
+    EXPECT_TRUE(session->isLinkLost());
+    EXPECT_TRUE(vitals.empty());
+
+    fake->inject(encode(protocol::EcgWaveformMessage{250, {100}}, 1));
+    EXPECT_FALSE(session->isLinkLost());
+    EXPECT_EQ(ecg.size(), 1);
+
+    fake->inject(encode(protocol::NumericsMessage{72, 97, false, false}, 2));
+    EXPECT_EQ(vitals.size(), 1U);
+}
+
+TEST_F(DeviceSessionTest, ImpossibleHeartRateBecomesEmptyAndIsCounted)
+{
+    session->start();
+    fake->inject(encode(protocol::NumericsMessage{999, 97, false, false}, 0));
+
+    ASSERT_EQ(vitals.size(), 1U);
+    EXPECT_FALSE(vitals[0].heartRateBpm.has_value());
+    EXPECT_EQ(vitals[0].spo2Percent, 97); // the other value is still good
+    EXPECT_EQ(session->statistics().implausibleValues, 1U);
+}
+
+TEST_F(DeviceSessionTest, ImpossibleSpo2BecomesEmptyAndIsCounted)
+{
+    session->start();
+    fake->inject(encode(protocol::NumericsMessage{72, 150, false, false}, 0));
+
+    ASSERT_EQ(vitals.size(), 1U);
+    EXPECT_EQ(vitals[0].heartRateBpm, 72);
+    EXPECT_FALSE(vitals[0].spo2Percent.has_value());
+    EXPECT_EQ(session->statistics().implausibleValues, 1U);
+}
+
+TEST_F(DeviceSessionTest, ExtremeButPossibleValuesAreKept)
+{
+    session->start();
+    fake->inject(encode(protocol::NumericsMessage{0, 0, false, false}, 0));     // asystole must alarm
+    fake->inject(encode(protocol::NumericsMessage{300, 100, false, false}, 1)); // upper limits
+
+    ASSERT_EQ(vitals.size(), 2U);
+    EXPECT_EQ(vitals[0].heartRateBpm, 0);
+    EXPECT_EQ(vitals[0].spo2Percent, 0);
+    EXPECT_EQ(vitals[1].heartRateBpm, 300);
+    EXPECT_EQ(vitals[1].spo2Percent, 100);
+    EXPECT_EQ(session->statistics().implausibleValues, 0U);
 }
 
 TEST_F(DeviceSessionTest, ReconnectsAfterUnexpectedDisconnect)

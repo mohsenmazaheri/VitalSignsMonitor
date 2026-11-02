@@ -2,14 +2,14 @@
 title: Developer Guide
 subtitle: VitalSigns Monitor - architecture, code structure, building, testing and extending
 docid: VSM-DEV-001
-version: 1.1
-date: 1 November 2026
+version: 1.2
+date: 2 November 2026
 author: Mohsen Mazaheri
 status: Draft for review
 lang: en
 output: EN/VitalSignsMonitor-02-Developer-Guide-EN.docx
 header: VitalSigns Monitor · Developer Guide
-history: 1.0 | 1 Nov 2026 | Mohsen Mazaheri | First issue, based on software version 0.1.0; 1.1 | 1 Nov 2026 | Mohsen Mazaheri | Alarm manager, audit log, alarm sounds and CI (software version 0.2.0)
+history: 1.0 | 1 Nov 2026 | Mohsen Mazaheri | First issue, based on software version 0.1.0; 1.1 | 1 Nov 2026 | Mohsen Mazaheri | Alarm manager, audit log, alarm sounds and CI (software version 0.2.0); 1.2 | 2 Nov 2026 | Mohsen Mazaheri | Stricter data watchdog, impossible values, risk analysis and traceability (software version 0.3.0)
 notice: **Synthetic data only - not a medical device.** Never add real patient data to the code, the tests or the repository.
 ---
 
@@ -29,6 +29,7 @@ This guide is for developers who build, change or review VitalSigns Monitor. It 
 | LEARNING.md | Learning log with design notes and interview questions |
 | CLAUDE.md | Short rules for AI-assisted work on the code base |
 | VSM-RFP-001 | Requirements with identifiers (FR-..., NFR-...) |
+| docs/medical/ | Software requirements, risk analysis and traceability, as a learning exercise |
 
 # 2. Technology stack
 
@@ -40,7 +41,7 @@ This guide is for developers who build, change or review VitalSigns Monitor. It 
 | I/O | Qt Network (QTcpSocket, QTcpServer), Qt Serial Port | |
 | Sound | Qt Multimedia (QSoundEffect) | Melodies generated in code |
 | Build | CMake 3.25+, Ninja or MinGW Makefiles | CMakePresets.json included |
-| Tests | GoogleTest 1.15 (fetched at configure time), CTest | 121 tests |
+| Tests | GoogleTest 1.15 (fetched at configure time), CTest | 140 tests, including the traceability check |
 | Compilers | GCC 13 (MinGW), MSVC 2022, Clang 14+ | Warnings on, warning-free |
 
 # 3. Repository layout
@@ -62,7 +63,8 @@ VitalSignsMonitor/
     cli/                  VitalSignsSimulator (console)
     gui/                  VitalSignsPatientSimulator (front panel, QML)
   tests/                  GoogleTest suites (protocol, core, device, simulation)
-  docs/                   ARCHITECTURE.md, PROTOCOL.md, images/
+  docs/                   ARCHITECTURE.md, PROTOCOL.md, medical/, images/
+  tools/check-traceability.ps1   checks docs/medical against code and tests
   .github/workflows/      ci.yml: build and test on Windows and Linux
   Documents/              this document set (Word) and its sources
 ```
@@ -101,7 +103,7 @@ Dependency rules:
 | VitalSignsMonitor | executable, QML module VitalSigns.App | vsm::app | monitor |
 | VitalSignsPatientSimulator | executable, QML module VitalSigns.PatientSimulator | vsm::simulator | front-panel simulator |
 | VitalSignsSimulator | console executable | - | console simulator |
-| vsm_unit_tests, vsm_device_tests, vsm_simulation_tests | test executables | - | GoogleTest suites |
+| vsm_unit_tests, vsm_device_tests, vsm_simulation_tests, vsm_app_tests | test executables | - | GoogleTest suites |
 
 ## 4.3 Threads and data flow
 
@@ -186,7 +188,7 @@ signals:
 ```
 
 - `TcpTransport` and `SerialTransport` implement it. `createDefaultTransport(ConnectionSettings)` chooses one.
-- `DeviceSession` connects a transport to a FrameDecoder, maps messages to domain objects, runs the watchdog (`kDefaultWatchdogTimeout` = 3000 ms) and the reconnect timer (`kDefaultReconnectDelay` = 2000 ms), and counts LinkStatistics (frames, CRC errors, lost frames, sequence gaps, discarded bytes).
+- `DeviceSession` connects a transport to a FrameDecoder, maps messages to domain objects, runs one watchdog each for numerics and ECG (`kDefaultWatchdogTimeout` = 3000 ms; heartbeats do not count), treats impossible values as not available and the reconnect timer (`kDefaultReconnectDelay` = 2000 ms), and counts LinkStatistics (frames, CRC errors, lost frames, sequence gaps, discarded bytes).
 - `DeviceController` owns the I/O thread and is the facade the view model talks to.
 - Logging categories: `vsm.device.controller`, `vsm.device.session`, `vsm.device.tcp`, `vsm.device.serial`; in the app `vsm.app.sound`.
 
@@ -232,7 +234,7 @@ All multi-byte fields are little-endian. Details: docs/PROTOCOL.md.
 | 8 | N | Payload | depends on the message type |
 | 8+N | 2 | CRC | CRC-16/CCITT-FALSE over bytes 2 to 8+N-1 |
 
-Receiver rules: search for the sync bytes and count the bytes skipped; reject a bad version or a length above 1024 before waiting for the payload; on a CRC error drop one byte and search again; count sequence gaps and lost frames; ignore unknown message types; any valid message resets the 3 s watchdog.
+Receiver rules: search for the sync bytes and count the bytes skipped; reject a bad version or a length above 1024 before waiting for the payload; on a CRC error drop one byte and search again; count sequence gaps and lost frames; ignore unknown message types; numerics and ECG each reset their own 3 s watchdog, a heartbeat does not.
 
 # 7. Building
 
@@ -271,7 +273,7 @@ The warning policy is in `cmake/CompilerWarnings.cmake`: GCC/Clang use -Wall -We
 
 ## 8.1 Running the tests
 
-Run `ctest --preset mingw-debug` (or "Run All Tests" in Qt Creator). All 121 tests must pass before a change is committed.
+Run `ctest --preset mingw-debug` (or "Run All Tests" in Qt Creator). All 140 tests must pass before a change is committed.
 
 | Test executable | Suite | Tests | What it proves |
 |---|---|---|---|
@@ -286,8 +288,10 @@ Run `ctest --preset mingw-debug` (or "Run All Tests" in Qt Creator). All 121 tes
 | vsm_unit_tests | AlarmManagerTest, AuditEvents | 26 | Latching, acknowledge, audio pause and its early end, sorting, sound priority, audit entries, short critical episode |
 | vsm_unit_tests | AlarmTone, Wav, AlarmToneByPriority | 16 | Pulse count, length, loopable end, no clipping, WAV header and byte order |
 | vsm_unit_tests | AuditFormat, FileAuditLogTest | 12 | UTC time, CSV quoting, header once, immediate flush, append, unwritable file |
-| vsm_device_tests | DeviceSessionTest | 10 | Session with FakeTransport: vitals mapping, ECG units, split frames, gaps and CRC errors, wrap-around, watchdog, reconnect |
+| vsm_device_tests | DeviceSessionTest | 18 | Session with FakeTransport: vitals mapping, ECG units, split frames, gaps and CRC errors, wrap-around, watchdogs for numerics and ECG, impossible values, reconnect |
+| vsm_app_tests | MonitorViewModelTest | 10 | Real view model and alarm chain with a fake transport and sound: stale data cleared, sound, latching, audio pause, disconnect, audit |
 | vsm_simulation_tests | DeviceSimulatorTest | 10 | Engine with FakeSink and a fake clock: sample rate, numerics, gradual HR, sensors off, cable, corruption, scenarios, power off |
+| CTest | traceability_check | 1 | docs/medical matches the code and the tests |
 
 ## 8.2 Test doubles
 
@@ -307,7 +311,11 @@ Run `ctest --preset mingw-debug` (or "Run All Tests" in Qt Creator). All 121 tes
 
 `.github/workflows/ci.yml` builds everything and runs all tests on Windows (MinGW) and Linux (GCC) with warnings as errors. It uses Qt 6.8.3, the oldest supported version, so developing on a newer Qt cannot silently raise the minimum. It runs on every pull request and every push to main. MSVC is not covered yet.
 
-The view models and QML have no automated tests; check them by hand with the simulator (User Guide, section 7).
+The QML files have no automated tests; check them by hand with the simulator (User Guide, section 7).
+
+## 8.5 Medical-style documents
+
+`docs/medical/` holds software requirements, a risk analysis and a traceability matrix, in the style of IEC 62304 and ISO 14971. They are a learning exercise and claim no compliance. When you change behaviour, update them: every requirement names its code and tests, and `tools/check-traceability.ps1` (CTest test `traceability_check`) fails on a broken link. It checks that links exist, not that a test really proves its requirement.
 
 # 9. Extending the system
 

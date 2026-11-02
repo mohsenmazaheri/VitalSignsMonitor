@@ -111,7 +111,7 @@ PatientSimulatorController (QML view model)       VitalSignsSimulator main()
 | `SPO2_CRITICAL_LOW` | SpO2 < 85 % | High | Physiological |
 | `ECG_LEADS_OFF` | leads-off flag | Low | Technical |
 | `SPO2_PROBE_OFF` | probe-off flag | Low | Technical |
-| `DEVICE_LINK_LOST` | no valid frame for 3 s | Medium | Technical |
+| `DEVICE_LINK_LOST` | no numerics or no ECG for 3 s (a heartbeat does not count) | Medium | Technical |
 
 Only the highest-priority alarm per source is reported. When the link is lost the numerics are
 cleared (shown as `---`) and the sensor alarms are suppressed, because their flags are stale.
@@ -171,5 +171,5 @@ The file holds no patient data. The log is a learning model: it is not protected
 - Settings (limits, last connection) are not persisted yet; alarm limits cannot be changed in the UI.
 - No hysteresis: a value moving around a limit raises and ends the alarm repeatedly.
 - A write error after the audit file was opened is not shown on screen; only a failed open is.
-- MSVC is not covered by CI, and the view models have no automated tests (checked by hand with the
+- MSVC is not covered by CI, and the QML files have no automated tests (checked by hand with the
   simulator).

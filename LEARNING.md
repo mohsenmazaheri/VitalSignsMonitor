@@ -63,3 +63,25 @@ Short daily notes: what I built, what I learned, what I would answer in an inter
 - Latched vs non-latched alarm, and acknowledge vs audio pause?
 - How do you test time-dependent logic without sleeping?
 - What belongs in an audit trail, and what must never be in it?
+
+## 2026-11-02 - Risk analysis, requirements, traceability (week 4)
+
+**Built**
+- `docs/medical`: requirements, risk table and traceability matrix, in the style of IEC 62304 and ISO 14971.
+- `tools/check-traceability.ps1`, run by CTest and CI: broken links between documents, code and tests fail the build.
+- `vsm_app_tests`: the real view model and alarm chain with a fake transport and sound. 140 tests in total.
+- Fixes the analysis led to: heartbeats no longer keep the link alive, impossible values become "---",
+  the ECG clears on link loss.
+
+**Learned / to review**
+- Doing the risk table against the running code found bugs that 121 passing tests had missed. The tests
+  proved what the code did, not that it should do it: one even asserted the heartbeat behaviour.
+- A CRC proves the bytes arrived unchanged, not that the value makes sense.
+- A control can create a new risk: the stricter watchdog can raise a false "no data" on a bad link (R-22).
+- Severity stays; software controls lower the probability. Open risks stay visible instead of being hidden.
+- Linking a test to a requirement does not prove the test is good; the checker only sees that links exist.
+
+**Interview questions this answers**
+- Hazard, hazardous situation and harm: what is the difference? What is residual risk?
+- What is SOUP, and what is software safety class C?
+- What does a traceability matrix give you, and what can it not tell you?

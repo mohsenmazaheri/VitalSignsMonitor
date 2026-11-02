@@ -2,14 +2,14 @@
 title: راهنمای توسعه‌دهنده
 subtitle: VitalSigns Monitor - معماری، ساختار کد، ساخت، آزمون و توسعه
 docid: VSM-DEV-001
-version: 1.1
-date: ۱۰ آبان ۱۴۰۵
+version: 1.2
+date: ۱۱ آبان ۱۴۰۵
 author: محسن مظاهری
 status: پیش‌نویس برای بررسی
 lang: fa
 output: FA/VitalSignsMonitor-02-Developer-Guide-FA.docx
 header: VitalSigns Monitor · راهنمای توسعه‌دهنده
-history: 1.0 | ۱۴۰۵/۰۸/۱۰ | محسن مظاهری | انتشار اول، بر اساس نسخه 0.1.0 نرم‌افزار; 1.1 | ۱۴۰۵/۰۸/۱۰ | محسن مظاهری | مدیر هشدار، ثبت رویداد، صدای هشدار و CI (نسخه 0.2.0 نرم‌افزار)
+history: 1.0 | ۱۴۰۵/۰۸/۱۰ | محسن مظاهری | انتشار اول، بر اساس نسخه 0.1.0 نرم‌افزار; 1.1 | ۱۴۰۵/۰۸/۱۰ | محسن مظاهری | مدیر هشدار، ثبت رویداد، صدای هشدار و CI (نسخه 0.2.0 نرم‌افزار); 1.2 | ۱۴۰۵/۰۸/۱۱ | محسن مظاهری | زمان‌سنج نگهبان دقیق‌تر، مقادیر ناممکن، تحلیل ریسک و ردیابی‌پذیری (نسخه 0.3.0 نرم‌افزار)
 notice: **فقط داده مصنوعی - این نرم‌افزار وسیله پزشکی نیست.** هرگز داده واقعی بیمار را به کد، آزمون‌ها یا مخزن اضافه نکنید.
 ---
 
@@ -29,6 +29,7 @@ notice: **فقط داده مصنوعی - این نرم‌افزار وسیله �
 | LEARNING.md | دفترچه یادگیری با نکات طراحی و پرسش‌های مصاحبه |
 | CLAUDE.md | قواعد کوتاه برای کار با دستیار هوش مصنوعی روی کد |
 | VSM-RFP-001 | نیازمندی‌ها با شناسه (FR-... و NFR-...) |
+| docs/medical/ | نیازمندی‌های نرم‌افزار، تحلیل ریسک و ردیابی‌پذیری، به‌عنوان تمرین آموزشی |
 
 # ۲- فناوری‌ها
 
@@ -40,7 +41,7 @@ notice: **فقط داده مصنوعی - این نرم‌افزار وسیله �
 | ورودی/خروجی | Qt Network (QTcpSocket، QTcpServer) و Qt Serial Port | |
 | صدا | Qt Multimedia (QSoundEffect) | ملودی‌ها در کد ساخته می‌شوند |
 | ساخت | CMake 3.25+ و Ninja یا MinGW Makefiles | فایل CMakePresets.json موجود است |
-| آزمون | GoogleTest 1.15 (هنگام پیکربندی دانلود می‌شود) و CTest | ۱۲۱ آزمون |
+| آزمون | GoogleTest 1.15 (هنگام پیکربندی دانلود می‌شود) و CTest | ۱۴۰ آزمون، همراه با بررسی ردیابی‌پذیری |
 | کامپایلرها | GCC 13 (MinGW)، MSVC 2022، Clang 14+ | هشدارها فعال؛ بدون هیچ هشدار |
 
 # ۳- ساختار مخزن
@@ -62,7 +63,8 @@ VitalSignsMonitor/
     cli/                  VitalSignsSimulator (console)
     gui/                  VitalSignsPatientSimulator (front panel, QML)
   tests/                  GoogleTest suites (protocol, core, device, simulation)
-  docs/                   ARCHITECTURE.md, PROTOCOL.md, images/
+  docs/                   ARCHITECTURE.md, PROTOCOL.md, medical/, images/
+  tools/check-traceability.ps1   checks docs/medical against code and tests
   .github/workflows/      ci.yml: build and test on Windows and Linux
   Documents/              this document set (Word) and its sources
 ```
@@ -101,7 +103,7 @@ VitalSignsMonitor/
 | VitalSignsMonitor | فایل اجرایی، ماژول QML به نام VitalSigns.App | vsm::app | مانیتور |
 | VitalSignsPatientSimulator | فایل اجرایی، ماژول QML به نام VitalSigns.PatientSimulator | vsm::simulator | شبیه‌ساز با پنل جلو |
 | VitalSignsSimulator | فایل اجرایی خط فرمان | - | شبیه‌ساز خط فرمان |
-| vsm_unit_tests، vsm_device_tests، vsm_simulation_tests | فایل‌های اجرایی آزمون | - | مجموعه‌های GoogleTest |
+| vsm_unit_tests، vsm_device_tests، vsm_simulation_tests، vsm_app_tests | فایل‌های اجرایی آزمون | - | مجموعه‌های GoogleTest |
 
 ## ۴-۳ رشته‌ها و جریان داده
 
@@ -186,7 +188,7 @@ signals:
 ```
 
 - `TcpTransport` و `SerialTransport` این رابط را پیاده می‌کنند و `createDefaultTransport(ConnectionSettings)` یکی از آن‌ها را انتخاب می‌کند.
-- `DeviceSession` ترابر را به FrameDecoder وصل می‌کند، پیام‌ها را به اشیای دامنه تبدیل می‌کند، زمان‌سنج نگهبان (`kDefaultWatchdogTimeout` برابر ۳۰۰۰ میلی‌ثانیه) و زمان‌سنج اتصال مجدد (`kDefaultReconnectDelay` برابر ۲۰۰۰ میلی‌ثانیه) را اجرا می‌کند و آمار LinkStatistics را می‌شمارد (فریم‌ها، خطاهای CRC، فریم‌های گم‌شده، پرش‌های شماره ترتیب، بایت‌های دورریخته).
+- `DeviceSession` ترابر را به FrameDecoder وصل می‌کند، پیام‌ها را به اشیای دامنه تبدیل می‌کند، برای داده عددی و ECG هر کدام یک زمان‌سنج نگهبان (`kDefaultWatchdogTimeout` برابر ۳۰۰۰ میلی‌ثانیه؛ ضربان حیات حساب نمی‌شود)، مقادیر ناممکن را نامعلوم حساب می‌کند و زمان‌سنج اتصال مجدد (`kDefaultReconnectDelay` برابر ۲۰۰۰ میلی‌ثانیه) را اجرا می‌کند و آمار LinkStatistics را می‌شمارد (فریم‌ها، خطاهای CRC، فریم‌های گم‌شده، پرش‌های شماره ترتیب، بایت‌های دورریخته).
 - `DeviceController` صاحب رشته ورودی/خروجی است و نمایی (facade) است که مدل نما با آن صحبت می‌کند.
 - دسته‌های لاگ: `vsm.device.controller`، `vsm.device.session`، `vsm.device.tcp` و `vsm.device.serial`؛ در برنامه `vsm.app.sound`.
 
@@ -232,7 +234,7 @@ signals:
 | 8 | N | داده | بسته به نوع پیام |
 | 8+N | 2 | CRC | CRC-16/CCITT-FALSE روی بایت‌های 2 تا 8+N-1 |
 
-قواعد گیرنده: بایت‌های همگام‌سازی را جست‌وجو کن و بایت‌های ردشده را بشمار؛ نسخه نادرست یا طول بیش از ۱۰۲۴ را پیش از انتظار برای داده رد کن؛ در خطای CRC یک بایت را کنار بگذار و دوباره جست‌وجو کن؛ پرش‌های شماره ترتیب و فریم‌های گم‌شده را بشمار؛ انواع پیام ناشناخته را نادیده بگیر؛ هر پیام معتبر زمان‌سنج نگهبان ۳ ثانیه‌ای را از نو شروع می‌کند.
+قواعد گیرنده: بایت‌های همگام‌سازی را جست‌وجو کن و بایت‌های ردشده را بشمار؛ نسخه نادرست یا طول بیش از ۱۰۲۴ را پیش از انتظار برای داده رد کن؛ در خطای CRC یک بایت را کنار بگذار و دوباره جست‌وجو کن؛ پرش‌های شماره ترتیب و فریم‌های گم‌شده را بشمار؛ انواع پیام ناشناخته را نادیده بگیر؛ داده عددی و ECG هر کدام زمان‌سنج ۳ ثانیه‌ای خودشان را از نو شروع می‌کنند ولی ضربان حیات نه.
 
 # ۷- ساخت
 
@@ -271,7 +273,7 @@ preset‌ها: `mingw-debug` (Ninja، ویندوز)، `windows-msvc` با preset
 
 ## ۸-۱ اجرای آزمون‌ها
 
-دستور `ctest --preset mingw-debug` (یا «Run All Tests» در Qt Creator) را اجرا کنید. پیش از هر commit باید هر ۱۲۱ آزمون موفق باشند.
+دستور `ctest --preset mingw-debug` (یا «Run All Tests» در Qt Creator) را اجرا کنید. پیش از هر commit باید هر ۱۴۰ آزمون موفق باشند.
 
 | فایل اجرایی آزمون | مجموعه | تعداد | آنچه ثابت می‌کند |
 |---|---|---|---|
@@ -286,8 +288,10 @@ preset‌ها: `mingw-debug` (Ninja، ویندوز)، `windows-msvc` با preset
 | vsm_unit_tests | AlarmManagerTest، AuditEvents | 26 | ماندگاری، تأیید، توقف صدا و پایان زودهنگام آن، مرتب‌سازی، اولویت صدا، ثبت رویداد، رویداد بحرانی کوتاه |
 | vsm_unit_tests | AlarmTone، Wav، AlarmToneByPriority | 16 | تعداد پالس، طول، پایان مناسب تکرار، بدون اشباع، سرآیند WAV و ترتیب بایت‌ها |
 | vsm_unit_tests | AuditFormat، FileAuditLogTest | 12 | زمان UTC، نقل‌قول CSV، سرآیند یک‌باره، نوشتن فوری، افزودن، فایل غیرقابل نوشتن |
-| vsm_device_tests | DeviceSessionTest | 10 | نشست با FakeTransport: تبدیل مقادیر، واحد ECG، فریم‌های تکه‌تکه، پرش‌ها و خطاهای CRC، چرخش شماره ترتیب، زمان‌سنج نگهبان، اتصال مجدد |
+| vsm_device_tests | DeviceSessionTest | 18 | نشست با FakeTransport: تبدیل مقادیر، واحد ECG، فریم‌های تکه‌تکه، پرش‌ها و خطاهای CRC، چرخش شماره ترتیب، زمان‌سنج نگهبان داده عددی و ECG، مقادیر ناممکن، اتصال مجدد |
+| vsm_app_tests | MonitorViewModelTest | 10 | مدل نمای واقعی و زنجیره هشدار با ترابر و صدای جعلی: پاک شدن داده کهنه، صدا، ماندگاری، توقف صدا، قطع اتصال، ثبت رویداد |
 | vsm_simulation_tests | DeviceSimulatorTest | 10 | موتور با FakeSink و ساعت جعلی: نرخ نمونه‌برداری، مقادیر عددی، تغییر تدریجی HR، حسگر جدا، کابل، خرابی فریم، سناریوها، خاموش کردن |
+| CTest | traceability_check | 1 | هماهنگی docs/medical با کد و آزمون‌ها |
 
 ## ۸-۲ بدل‌های آزمون
 
@@ -307,7 +311,11 @@ preset‌ها: `mingw-debug` (Ninja، ویندوز)، `windows-msvc` با preset
 
 فایل `.github/workflows/ci.yml` همه چیز را می‌سازد و همه آزمون‌ها را روی ویندوز (MinGW) و لینوکس (GCC) اجرا می‌کند و هشدارهای کامپایلر را خطا حساب می‌کند. این فایل از Qt 6.8.3، قدیمی‌ترین نسخه پشتیبانی‌شده، استفاده می‌کند تا توسعه روی Qt جدیدتر بی‌صدا حداقل نسخه را بالا نبرد. روی هر pull request و هر push به main اجرا می‌شود. MSVC هنوز پوشش داده نشده است.
 
-مدل‌های نما و QML آزمون خودکار ندارند؛ آن‌ها را با شبیه‌ساز دستی بررسی کنید (راهنمای کاربری، بخش ۷).
+فایل‌های QML آزمون خودکار ندارند؛ آن‌ها را با شبیه‌ساز دستی بررسی کنید (راهنمای کاربری، بخش ۷).
+
+## ۸-۵ اسناد به سبک نرم‌افزار پزشکی
+
+پوشه `docs/medical/` نیازمندی‌های نرم‌افزار، تحلیل ریسک و ماتریس ردیابی‌پذیری را به سبک IEC 62304 و ISO 14971 دارد. این‌ها تمرین آموزشی‌اند و ادعای انطباق ندارند. وقتی رفتاری را تغییر می‌دهید آن‌ها را هم به‌روز کنید: هر نیازمندی کد و آزمون خودش را نام می‌برد و `tools/check-traceability.ps1` (آزمون CTest به نام `traceability_check`) با پیوند شکسته خطا می‌دهد. این اسکریپت وجود پیوندها را بررسی می‌کند، نه این‌که آزمون واقعاً نیازمندی را ثابت می‌کند.
 
 # ۹- توسعه سامانه
 

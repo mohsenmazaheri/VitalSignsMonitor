@@ -26,7 +26,9 @@ namespace vsm::device {
 ///  - drives an ITransport (open, automatic reconnect after a delay),
 ///  - decodes the byte stream into frames and messages (vsm::protocol),
 ///  - maps wire messages to domain types (vsm::core::VitalSigns, ECG in mV),
-///  - watchdog: reports a lost link if no valid frame arrives in time,
+///  - watchdog: reports a lost link if numerics or ECG stop arriving (a heartbeat
+///    alone proves nothing: the numbers on screen could be arbitrarily old),
+///  - rejects physiologically impossible values,
 ///  - keeps link statistics (CRC errors, sequence gaps, ...).
 ///
 /// Threading: lives in the I/O thread (see DeviceController). All signals are
@@ -71,11 +73,14 @@ private:
     void onTransportStateChanged(ITransport::State state);
     void handleFrame(const protocol::Frame& frame);
     void trackSequence(std::uint16_t sequence);
+    void onDataExpired(const char* kind);
+    void noteDataArrived(QTimer* watchdog);
     void setLinkLost(bool lost);
 
     ITransport* m_transport; // owned via QObject parent
     std::unique_ptr<protocol::FrameDecoder> m_decoder;
-    QTimer* m_watchdog;
+    QTimer* m_numericsWatchdog;
+    QTimer* m_ecgWatchdog;
     QTimer* m_reconnectTimer;
     QTimer* m_statisticsTimer;
 
@@ -83,6 +88,7 @@ private:
     quint64 m_sequenceGaps{0};
     quint64 m_framesLost{0};
     quint64 m_malformedMessages{0};
+    quint64 m_implausibleValues{0};
     bool m_running{false};
     bool m_linkLost{false};
 };

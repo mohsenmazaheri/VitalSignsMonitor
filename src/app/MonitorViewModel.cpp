@@ -211,8 +211,10 @@ void MonitorViewModel::onLinkLost(bool lost)
     m_linkLost = lost;
     recordEvent(lost ? core::AuditEventType::LinkLost : core::AuditEventType::LinkRestored, m_endpoint);
     if (lost) {
-        // Stale numbers must never be shown as if they were current.
+        // Stale data must never be shown as if it were current: neither the
+        // numbers nor a frozen ECG trace, which can look like a live one.
         m_vitals = {};
+        m_ecg.clear();
         emit vitalsChanged();
     }
     emit connectionChanged();
