@@ -6,7 +6,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 project(VitalSignsMonitor
-    VERSION 0.2.0
+    VERSION 0.3.0
     DESCRIPTION "Desktop vital-signs monitor (C++20, Qt 6/QML) for a simulated bedside device"
     HOMEPAGE_URL "https://github.com/mohsenmazaheri/VitalSignsMonitor"
     LANGUAGES CXX)

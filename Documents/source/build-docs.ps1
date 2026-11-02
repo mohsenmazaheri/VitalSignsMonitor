@@ -595,6 +595,9 @@ function Build-Document($word, [string] $sourcePath) {
             # heading such as "۴- نصب Qt" shows its number in the wrong place. Mark them RTL.
             $doc.TablesOfContents.Item(1).Range.Select()
             $word.Selection.RtlRun()
+            # RtlRun leaves the paragraphs marked left-to-right (w:bidi=0), which Word shows as a
+            # left-to-right contents list; the paragraph direction must be set as well.
+            $word.Selection.ParagraphFormat.ReadingOrder = $wdReadingOrderRtl
             $word.Selection.EndKey($wdStory) | Out-Null
         }
         Set-DocumentProperty $doc 'Title' $meta.title

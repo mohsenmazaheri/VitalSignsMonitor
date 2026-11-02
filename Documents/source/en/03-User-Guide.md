@@ -2,14 +2,14 @@
 title: User Guide
 subtitle: VitalSigns Monitor and Patient Simulator - operating the programs
 docid: VSM-USR-001
-version: 1.1
-date: 1 November 2026
+version: 1.2
+date: 2 November 2026
 author: Mohsen Mazaheri
 status: Draft for review
 lang: en
 output: EN/VitalSignsMonitor-03-User-Guide-EN.docx
 header: VitalSigns Monitor · User Guide
-history: 1.0 | 1 Nov 2026 | Mohsen Mazaheri | First issue, based on software version 0.1.0; 1.1 | 1 Nov 2026 | Mohsen Mazaheri | Alarm manager, audit log, alarm sounds and CI (software version 0.2.0)
+history: 1.0 | 1 Nov 2026 | Mohsen Mazaheri | First issue, based on software version 0.1.0; 1.1 | 1 Nov 2026 | Mohsen Mazaheri | Alarm manager, audit log, alarm sounds and CI (software version 0.2.0); 1.2 | 2 Nov 2026 | Mohsen Mazaheri | Stricter data watchdog, impossible values, risk analysis and traceability (software version 0.3.0)
 notice: **Synthetic data only - not a medical device.** The programs show synthetic signals from a simulator. Do not use them for diagnosis, treatment or monitoring of people.
 ---
 
@@ -162,13 +162,13 @@ The banner below the connection bar shows the most important alarm in the colour
 
 ## 5.3 ECG panel
 
-The ECG (lead II) is drawn from left to right and overwrites the old trace, like a monitor sweep. When the electrodes are off, the panel shows "LEADS OFF".
+The ECG (lead II) is drawn from left to right and overwrites the old trace, like a monitor sweep. When the electrodes are off, the panel shows "LEADS OFF". When the link is lost, the trace is cleared, so that an old trace cannot look live.
 
 ## 5.4 Numeric tiles
 
 - **HR** in bpm (green) and **SpO2** in % (cyan).
 - When a value is outside its limits, the number and the tile border take the colour of the alarm priority.
-- A missing value is shown as "---", never as an old number. "PROBE OFF" appears under SpO2 when the probe is detached.
+- A missing value is shown as "---", never as an old number. So is a value no body can produce (heart rate above 300 bpm, SpO2 above 100 %). "PROBE OFF" appears under SpO2 when the probe is detached.
 
 ## 5.5 Footer
 
@@ -211,7 +211,7 @@ The right side shows the permanent notice "SYNTHETIC DATA - NOT A MEDICAL DEVICE
 | SPO2_CRITICAL_LOW | SpO2 < 85 % | High | SpO2 critically low (< 85 %) |
 | ECG_LEADS_OFF | Electrodes detached | Low | ECG leads off |
 | SPO2_PROBE_OFF | Probe detached | Low | SpO2 probe off |
-| DEVICE_LINK_LOST | No valid data for 3 s | Medium | No data from device |
+| DEVICE_LINK_LOST | No numerics or ECG data for 3 s (a heartbeat alone does not count) | Medium | No data from device |
 
 ## 6.3 Behaviour
 
@@ -222,7 +222,7 @@ The right side shows the permanent notice "SYNTHETIC DATA - NOT A MEDICAL DEVICE
 - **Audio pause:** a new medium or high alarm ends the pause early; a new low alarm does not. The key is off when nothing is unacknowledged, because a pause in advance would hide the next alarm. Visual signals keep running during the pause.
 - **Disconnect** clears all alarms, also latched ones, because the next session may be another patient.
 - When the link is lost, HR and SpO2 are cleared to "---" and the sensor alarms are hidden, because the last sensor state is no longer known.
-- The limits cannot be changed in version 0.2.0.
+- The limits cannot be changed in version 0.3.0.
 
 ## 6.4 Alarm sounds
 

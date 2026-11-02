@@ -27,6 +27,8 @@ start-up) or `VitalSignsSimulator.exe` (console), then `VitalSignsMonitor.exe --
 - `Documents/` - Word documents (RFP, Developer, User, Installation guides) in `EN/` and `FA/`,
   generated from `Documents/source/{en,fa}/*.md` by `Documents/source/build-docs.ps1` (Word COM).
   Edit the sources, never the .docx; keep EN and FA in step and the facts equal to the code.
+- `docs/medical` - requirements (SRS-nnn, MT-nn), risk table (R-nn) and traceability matrix.
+  `tools/check-traceability.ps1` checks them against code, tests and the RFP; CTest runs it as `traceability_check`.
 
 ## Rules
 
@@ -40,6 +42,8 @@ start-up) or `VitalSignsSimulator.exe` (console), then `VitalSignsMonitor.exe --
 - Apps using `VitalSigns.Ui` link `vsm_uiplugin` and call `Q_IMPORT_QML_PLUGIN(VitalSigns_UiPlugin)`.
 - Every new logic class gets GoogleTest tests; build must stay warning-free (GCC `-Wall -Wextra
   -Wconversion ...`, MSVC `/W4`).
+- A behaviour change updates `docs/medical` in the same commit: requirement, risk, test link. Record a manual
+  test as passed only after really running it; an open risk stays open until a control exists.
 - Doxygen-style `///` comments on public types; comments explain *why*, not *what*.
 - Medical standards (IEC 62304, ISO 14971, IEC 60601-1-8) are referenced only as "in the style of" /
   learning exercises - never claim compliance. The simulator GUI must keep its

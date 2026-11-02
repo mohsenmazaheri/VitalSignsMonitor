@@ -13,6 +13,7 @@ struct LinkStatistics {
     quint64 sequenceGaps{0};      ///< Times the sequence number jumped.
     quint64 framesLost{0};        ///< Frames missing in those jumps (sum of the gap sizes).
     quint64 malformedMessages{0}; ///< Valid frames with an unknown type or bad payload.
+    quint64 implausibleValues{0}; ///< Valid numbers outside what a body can produce (device fault).
 
     friend bool operator==(const LinkStatistics&, const LinkStatistics&) = default;
 };

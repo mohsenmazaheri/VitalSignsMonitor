@@ -2,14 +2,14 @@
 title: راهنمای نصب و راه‌اندازی
 subtitle: VitalSigns Monitor - ابزارها، ساخت، اجرای اول، توزیع و درگاه‌های سریال مجازی
 docid: VSM-INS-001
-version: 1.1
-date: ۱۰ آبان ۱۴۰۵
+version: 1.2
+date: ۱۱ آبان ۱۴۰۵
 author: محسن مظاهری
 status: پیش‌نویس برای بررسی
 lang: fa
 output: FA/VitalSignsMonitor-04-Installation-Guide-FA.docx
 header: VitalSigns Monitor · راهنمای نصب و راه‌اندازی
-history: 1.0 | ۱۴۰۵/۰۸/۱۰ | محسن مظاهری | انتشار اول، بر اساس نسخه 0.1.0 نرم‌افزار; 1.1 | ۱۴۰۵/۰۸/۱۰ | محسن مظاهری | مدیر هشدار، ثبت رویداد، صدای هشدار و CI (نسخه 0.2.0 نرم‌افزار)
+history: 1.0 | ۱۴۰۵/۰۸/۱۰ | محسن مظاهری | انتشار اول، بر اساس نسخه 0.1.0 نرم‌افزار; 1.1 | ۱۴۰۵/۰۸/۱۰ | محسن مظاهری | مدیر هشدار، ثبت رویداد، صدای هشدار و CI (نسخه 0.2.0 نرم‌افزار); 1.2 | ۱۴۰۵/۰۸/۱۱ | محسن مظاهری | زمان‌سنج نگهبان دقیق‌تر، مقادیر ناممکن، تحلیل ریسک و ردیابی‌پذیری (نسخه 0.3.0 نرم‌افزار)
 notice: **فقط داده مصنوعی - این نرم‌افزار وسیله پزشکی نیست.** برنامه‌ها را فقط برای آموزش، نمایش و آزمون نرم‌افزار نصب کنید.
 ---
 
@@ -141,7 +141,7 @@ cmake --build build/mingw-debug --parallel
 ctest --preset mingw-debug
 ```
 
-نتیجه مورد انتظار: «100% tests passed, 0 tests failed out of 121». در Qt Creator: Tools > Tests > Run All Tests.
+نتیجه مورد انتظار: «100% tests passed, 0 tests failed out of 140». در Qt Creator: Tools > Tests > Run All Tests.
 
 ## ۸-۲ اجرای اول
 
@@ -205,7 +205,7 @@ change CNCB0 PortName=COM6
 
 # ۱۱- لینوکس
 
-هنوز بررسی نشده؛ ساخت لینوکس برای مرحله M3 (در WSL2) برنامه‌ریزی شده است.
+CI پروژه را روی Ubuntu با Qt 6.8.3 می‌سازد و همه آزمون‌ها را اجرا می‌کند. برنامه‌ها هنوز دستی روی لینوکس اجرا نشده‌اند و ساخت در WSL2 هم امتحان نشده است.
 
 1. کیت رومیزی Qt 6.8 یا جدیدتر (gcc_64) را با Qt Online Installer و همراه با Qt Serial Port نصب کنید. بسته‌های توزیع‌ها اغلب قدیمی‌تر از Qt 6.8 هستند.
 2. ابزارهای ساخت را نصب کنید، مثلاً در Debian یا Ubuntu: `sudo apt install build-essential ninja-build libgl1-mesa-dev` و یک CMake با نسخه 3.25 یا جدیدتر.
@@ -244,6 +244,6 @@ ctest --preset linux-debug
 
 # ۱۴- حذف نصب
 
-- پوشه پروژه (و در صورت وجود، پوشه deploy) را پاک کنید. نسخه 0.2.0 هیچ تنظیماتی ذخیره نمی‌کند (نه QSettings و نه رجیستری). تنها فایل‌های دیگر، ثبت رویدادها در `%LOCALAPPDATA%\Mohsen Mazaheri\VitalSigns Monitor\audit` هستند؛ اگر لازمشان ندارید، این پوشه را هم پاک کنید.
+- پوشه پروژه (و در صورت وجود، پوشه deploy) را پاک کنید. نسخه 0.3.0 هیچ تنظیماتی ذخیره نمی‌کند (نه QSettings و نه رجیستری). تنها فایل‌های دیگر، ثبت رویدادها در `%LOCALAPPDATA%\Mohsen Mazaheri\VitalSigns Monitor\audit` هستند؛ اگر لازمشان ندارید، این پوشه را هم پاک کنید.
 - Qt را با `C:\Qt\MaintenanceTool.exe` و گزینه Remove all components حذف کنید.
 - com0com را با حذف‌کننده آن از فهرست برنامه‌های ویندوز حذف کنید.

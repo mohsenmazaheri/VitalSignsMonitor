@@ -11,7 +11,7 @@ SpO2, and raises prioritised **alarms**.
 > numbers. No real patient data is used, stored or transmitted. The project is a learning and
 > portfolio project and must not be used for diagnosis or patient monitoring.
 
-## Features (v0.2)
+## Features (v0.3)
 
 - **Patient simulator with a hardware-style front panel** (`VitalSignsPatientSimulator`): colour
   LCD with the generated ECG, knobs and keys for heart rate and SpO2, "leads off" / "probe off"
@@ -23,7 +23,7 @@ SpO2, and raises prioritised **alarms**.
 - **Binary protocol** with sync bytes, sequence numbers and CRC-16, plus a streaming decoder that
   re-synchronises after corrupted data ([docs/PROTOCOL.md](docs/PROTOCOL.md)).
 - **Separate I/O thread**: socket/serial handling and parsing never block the UI.
-- **Automatic reconnect** and a **watchdog** that raises "No data from device" after 3 s.
+- **Automatic reconnect** and **watchdogs** that raise "No data from device" after 3 s without numerics or ECG.
 - **Alarm engine**: high/medium/low priorities, one alarm per parameter, technical alarms for
   leads off, probe off and lost link. Rules are pluggable (Strategy pattern).
 - **Alarm manager**: high-priority alarms latch until acknowledged, **ACKNOWLEDGE** and a two-minute
@@ -32,7 +32,8 @@ SpO2, and raises prioritised **alarms**.
   on-screen **EVENTS** list. No patient data.
 - **Qt Quick UI**: ECG sweep drawn with the Qt Quick scene graph, numeric tiles, alarm banner, link
   statistics (frames, CRC errors, lost frames).
-- **121 unit tests** with GoogleTest (protocol, randomised decoder tests, alarms, alarm manager, audit log,
+- **140 automated tests**: GoogleTest (protocol, randomised decoder tests, alarms, alarm manager, audit log,
+  the monitor view model,
   alarm tones, buffers, device session with a
   fake transport, simulator engine with a fake clock).
 
@@ -155,8 +156,16 @@ tools/simulator/cli/     VitalSignsSimulator (console)
 tools/simulator/gui/     VitalSignsPatientSimulator (front panel, QML)
 tests/           GoogleTest unit tests
 docs/            architecture, protocol, screenshots
+docs/medical/    requirements, risk analysis, traceability (learning exercise, no compliance claim)
+tools/           check-traceability.ps1: keeps docs/medical in step with code and tests
 Documents/       RFP, developer, user and installation guides (Word, English and Persian) + sources
 ```
+
+## Medical-software documents
+
+[docs/medical](docs/medical/README.md) holds software requirements, a risk analysis and a traceability
+matrix, in the style of IEC 62304 and ISO 14971. They are a learning exercise and claim no compliance. The
+analysis found real problems in the code, which version 0.3.0 fixes, and it lists the risks that are still open.
 
 ## Documents
 
@@ -169,8 +178,9 @@ Setup Guide. They are generated from the Markdown-like sources in `Documents/sou
 
 - [x] Week 2: CMake project, simulator, protocol, parsing in a separate thread
 - [x] Week 3: alarm manager (latching, acknowledge, audio pause, sounds), audit log, more tests, GitHub Actions (Windows + Linux)
-- [ ] Week 4: medical-software documentation as a learning exercise (risk table in the style of
-      ISO 14971, software requirements and traceability in the style of IEC 62304), Linux build in WSL2
+- [x] Week 4: medical-software documentation as a learning exercise (risk table in the style of
+      ISO 14971, software requirements and traceability in the style of IEC 62304), Linux build verified by CI
+- [ ] Linux build in WSL2 by hand
 - [ ] Later: stream data to the CareHub web app (ASP.NET Core + SignalR)
 
 ## License

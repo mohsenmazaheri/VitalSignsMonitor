@@ -55,4 +55,6 @@ The payload length must equal `4 + 2 * n`, otherwise the message is rejected.
 4. A jump in the sequence number is counted as a gap, and the skipped numbers as lost frames
    (a frame dropped for a CRC error is also a lost frame); a reconnect starts a new sequence.
 5. Unknown message types are ignored (forward compatibility) and counted as malformed.
-6. Any valid message resets the 3 s watchdog; if it expires, the link is reported as lost.
+6. Numerics and ECG each reset their own 3 s watchdog; a heartbeat does not. If either expires, the link
+   is reported as lost and nothing reaches the display until both have arrived again.
+7. A heart rate above 300 bpm or an SpO2 above 100 % is treated as "not available" and counted.

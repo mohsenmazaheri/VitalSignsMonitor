@@ -17,14 +17,28 @@ namespace {
 
 constexpr float kMicrovoltsPerMillivolt = 1000.0F;
 
-[[nodiscard]] core::VitalSigns toDomain(const protocol::NumericsMessage& message)
+// A correct CRC only proves the bytes arrived unchanged, not that the device
+// measured something possible. An impossible number must not look like a reading:
+// SpO2 150 would otherwise be shown as a value and raise no alarm at all.
+constexpr int kMaxPlausibleHeartRateBpm = 300;
+constexpr int kMaxPlausibleSpo2Percent = 100;
+
+[[nodiscard]] core::VitalSigns toDomain(const protocol::NumericsMessage& message, quint64& implausibleValues)
 {
     core::VitalSigns vitals;
     if (message.heartRateBpm) {
-        vitals.heartRateBpm = static_cast<int>(*message.heartRateBpm);
+        if (*message.heartRateBpm <= kMaxPlausibleHeartRateBpm) {
+            vitals.heartRateBpm = static_cast<int>(*message.heartRateBpm);
+        } else {
+            ++implausibleValues;
+        }
     }
     if (message.spo2Percent) {
-        vitals.spo2Percent = static_cast<int>(*message.spo2Percent);
+        if (*message.spo2Percent <= kMaxPlausibleSpo2Percent) {
+            vitals.spo2Percent = static_cast<int>(*message.spo2Percent);
+        } else {
+            ++implausibleValues;
+        }
     }
     vitals.ecgLeadsOff = message.ecgLeadsOff;
     vitals.spo2ProbeOff = message.spo2ProbeOff;
@@ -47,19 +61,21 @@ DeviceSession::DeviceSession(std::unique_ptr<ITransport> transport, QObject* par
     : QObject(parent)
     , m_transport(transport.release())
     , m_decoder(std::make_unique<protocol::FrameDecoder>())
-    , m_watchdog(new QTimer(this))
+    , m_numericsWatchdog(new QTimer(this))
+    , m_ecgWatchdog(new QTimer(this))
     , m_reconnectTimer(new QTimer(this))
     , m_statisticsTimer(new QTimer(this))
 {
     Q_ASSERT(m_transport != nullptr);
     m_transport->setParent(this);
 
-    m_watchdog->setSingleShot(true);
-    m_watchdog->setInterval(kDefaultWatchdogTimeout);
-    connect(m_watchdog, &QTimer::timeout, this, [this] {
-        qCWarning(lcSession) << "No valid data for" << m_watchdog->interval() << "ms from" << description();
-        setLinkLost(true);
-    });
+    m_numericsWatchdog->setSingleShot(true);
+    m_numericsWatchdog->setInterval(kDefaultWatchdogTimeout);
+    connect(m_numericsWatchdog, &QTimer::timeout, this, [this] { onDataExpired("numerics"); });
+
+    m_ecgWatchdog->setSingleShot(true);
+    m_ecgWatchdog->setInterval(kDefaultWatchdogTimeout);
+    connect(m_ecgWatchdog, &QTimer::timeout, this, [this] { onDataExpired("ECG"); });
 
     m_reconnectTimer->setSingleShot(true);
     m_reconnectTimer->setInterval(kDefaultReconnectDelay);
@@ -80,7 +96,8 @@ DeviceSession::~DeviceSession()
 
 void DeviceSession::setWatchdogTimeout(std::chrono::milliseconds timeout)
 {
-    m_watchdog->setInterval(timeout);
+    m_numericsWatchdog->setInterval(timeout);
+    m_ecgWatchdog->setInterval(timeout);
 }
 
 void DeviceSession::setReconnectDelay(std::chrono::milliseconds delay)
@@ -98,6 +115,7 @@ LinkStatistics DeviceSession::statistics() const
     stats.sequenceGaps = m_sequenceGaps;
     stats.framesLost = m_framesLost;
     stats.malformedMessages = m_malformedMessages;
+    stats.implausibleValues = m_implausibleValues;
     return stats;
 }
 
@@ -114,7 +132,8 @@ void DeviceSession::start()
     m_running = true;
     qCInfo(lcSession) << "Starting session" << description();
 
-    m_watchdog->start();
+    m_numericsWatchdog->start();
+    m_ecgWatchdog->start();
     m_statisticsTimer->start();
     m_transport->open();
 }
@@ -127,7 +146,8 @@ void DeviceSession::stop()
     m_running = false; // set first: the Disconnected callback must not reconnect
     qCInfo(lcSession) << "Stopping session" << description();
 
-    m_watchdog->stop();
+    m_numericsWatchdog->stop();
+    m_ecgWatchdog->stop();
     m_reconnectTimer->stop();
     m_statisticsTimer->stop();
     m_transport->close();
@@ -169,23 +189,47 @@ void DeviceSession::handleFrame(const protocol::Frame& frame)
         return;
     }
 
-    // Any valid message proves the device is alive.
-    if (m_running) {
-        m_watchdog->start();
-    }
-    setLinkLost(false);
-
+    // While the link counts as lost, a partly working device is not trusted:
+    // nothing it sends reaches the display until numerics and ECG are both back.
     std::visit(
         [this](const auto& msg) {
             using T = std::decay_t<decltype(msg)>;
             if constexpr (std::is_same_v<T, protocol::NumericsMessage>) {
-                emit vitalsReceived(toDomain(msg));
+                noteDataArrived(m_numericsWatchdog);
+                const quint64 implausibleBefore = m_implausibleValues;
+                const core::VitalSigns vitals = toDomain(msg, m_implausibleValues);
+                if (m_implausibleValues != implausibleBefore) {
+                    qCWarning(lcSession) << "Implausible numerics from" << description();
+                }
+                if (!m_linkLost) {
+                    emit vitalsReceived(vitals);
+                }
             } else if constexpr (std::is_same_v<T, protocol::EcgWaveformMessage>) {
-                emit ecgSamplesReceived(toMillivolts(msg.samplesMicrovolts), msg.sampleRateHz);
+                noteDataArrived(m_ecgWatchdog);
+                if (!m_linkLost) {
+                    emit ecgSamplesReceived(toMillivolts(msg.samplesMicrovolts), msg.sampleRateHz);
+                }
             }
-            // HeartbeatMessage: only feeds the watchdog (done above).
+            // HeartbeatMessage: deliberately feeds no watchdog. A device that still
+            // says "I am alive" but measures nothing must not keep old numbers on screen.
         },
         *message);
+}
+
+void DeviceSession::onDataExpired(const char* kind)
+{
+    qCWarning(lcSession) << "No" << kind << "data for" << m_numericsWatchdog->interval() << "ms from" << description();
+    setLinkLost(true);
+}
+
+void DeviceSession::noteDataArrived(QTimer* watchdog)
+{
+    if (m_running) {
+        watchdog->start();
+    }
+    if (m_numericsWatchdog->isActive() && m_ecgWatchdog->isActive()) {
+        setLinkLost(false);
+    }
 }
 
 void DeviceSession::trackSequence(std::uint16_t sequence)
